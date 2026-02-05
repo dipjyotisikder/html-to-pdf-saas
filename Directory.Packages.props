@@ -8,35 +8,35 @@
     <PackageVersion Include="AspNetCoreRateLimit" Version="5.0.0" />
     
     <!-- Validation -->
-    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.9.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
     
     <!-- HTML Sanitization -->
     <PackageVersion Include="HtmlSanitizer" Version="9.0.892" />
     
     <!-- Email -->
-    <PackageVersion Include="MailKit" Version="4.3.0" />
+    <PackageVersion Include="MailKit" Version="4.9.0" />
     
     <!-- CQRS and Mediator Pattern -->
-    <PackageVersion Include="MediatR" Version="12.2.0" />
+    <PackageVersion Include="MediatR" Version="12.4.1" />
     
     <!-- Authentication -->
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
     
     <!-- Entity Framework Core -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0" />
     
     <!-- Docker Support -->
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
     
     <!-- Resilience -->
-    <PackageVersion Include="Polly" Version="8.2.1" />
+    <PackageVersion Include="Polly" Version="8.5.0" />
     
     <!-- API Documentation -->
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     
     <!-- PDF Generation -->
     <PackageVersion Include="DinkToPdf" Version="1.0.8" />

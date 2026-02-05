@@ -19,3 +19,10 @@ public record GenerateAsyncResult(
     string Message,
     DateTime CreatedAt
 );
+
+public record GenerateAsyncRequest(
+    string HtmlContent,
+    string? Filename,
+    string? Orientation,
+    string? PaperSize
+);
