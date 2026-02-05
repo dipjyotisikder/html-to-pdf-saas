@@ -1,7 +1,9 @@
+using HTPDF.Data.Entities;
+
 namespace HTPDF.Models;
 
 /// <summary>
-/// Represents a PDF generation job.
+/// DTO for PDF generation job (for backward compatibility with in-memory operations).
 /// </summary>
 public class PdfJob
 {
@@ -39,15 +41,4 @@ public class PdfJob
     /// Filename for the PDF.
     /// </summary>
     public string? Filename { get; set; }
-}
-
-/// <summary>
-/// Status of a PDF generation job.
-/// </summary>
-public enum JobStatus
-{
-    Pending,
-    Processing,
-    Completed,
-    Failed
 }

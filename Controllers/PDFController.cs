@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using HTPDF.Models;
 using HTPDF.Services;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace HTPDF.Controllers;
 
@@ -9,6 +11,7 @@ namespace HTPDF.Controllers;
 /// </summary>
 [ApiController]
 [Route("pdf")]
+[Authorize] // Require authentication for all endpoints
 public class PDFController(
     ILogger<PDFController> logger, 
     IPdfMaker pdfMaker,
@@ -20,11 +23,15 @@ public class PDFController(
     private readonly IHtmlSanitizerService _htmlSanitizer = htmlSanitizer;
     private readonly IPdfJobService _jobService = jobService;
 
+    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private string GetUserEmail() => User.FindFirstValue(ClaimTypes.Email)!;
+
     /// <summary>
     /// Endpoint to get a PDF document from hardcoded data (demo/testing).
     /// </summary>
     /// <returns>PDF file as a byte array.</returns>
     [HttpGet("demo")]
+    [AllowAnonymous] // Allow demo endpoint without auth
     public ActionResult GetDemo()
     {
         _logger.LogInformation("Demo PDF generation requested");
@@ -38,6 +45,7 @@ public class PDFController(
     /// </summary>
     /// <returns>Chunked PDF file as a byte array.</returns>
     [HttpGet("demo/chunked")]
+    [AllowAnonymous] // Allow demo endpoint without auth
     public ActionResult GetDemoChunked()
     {
         _logger.LogInformation("Demo chunked PDF generation requested");
@@ -54,7 +62,7 @@ public class PDFController(
     /// <returns>PDF file as a byte array.</returns>
     /// <response code="200">Returns the generated PDF file.</response>
     /// <response code="400">If the request is invalid or HTML content is too large.</response>
-    /// <response code="401">If API key is missing or invalid.</response>
+    /// <response code="401">If user is not authenticated.</response>
     /// <response code="429">If rate limit is exceeded.</response>
     [HttpPost("generate")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
@@ -70,7 +78,8 @@ public class PDFController(
 
         try
         {
-            _logger.LogInformation("Synchronous PDF generation requested");
+            var userId = GetUserId();
+            _logger.LogInformation("Synchronous PDF generation requested by user {UserId}", userId);
 
             // Sanitize HTML to prevent XSS
             var sanitizedHtml = _htmlSanitizer.Sanitize(request.HtmlContent);
@@ -102,12 +111,13 @@ public class PDFController(
     /// <summary>
     /// Submits a PDF generation job for asynchronous processing.
     /// Use this for large PDFs or when you don't need immediate results.
+    /// The PDF will be emailed to you when ready.
     /// </summary>
     /// <param name="request">PDF generation request containing HTML content.</param>
     /// <returns>Job information with job ID for tracking.</returns>
     /// <response code="202">Returns the job ID and tracking information.</response>
     /// <response code="400">If the request is invalid.</response>
-    /// <response code="401">If API key is missing or invalid.</response>
+    /// <response code="401">If user is not authenticated.</response>
     /// <response code="429">If rate limit is exceeded.</response>
     [HttpPost("generate/async")]
     [ProducesResponseType(typeof(PdfGenerationResponse), StatusCodes.Status202Accepted)]
@@ -123,19 +133,19 @@ public class PDFController(
 
         try
         {
-            _logger.LogInformation("Async PDF generation requested");
+            var userId = GetUserId();
+            var userEmail = GetUserEmail();
 
-            // Sanitize HTML
-            request.HtmlContent = _htmlSanitizer.Sanitize(request.HtmlContent);
+            _logger.LogInformation("Async PDF generation requested by user {UserId}", userId);
 
             // Submit job
-            var jobId = await _jobService.SubmitJobAsync(request);
+            var jobId = await _jobService.SubmitJobAsync(request, userId, userEmail);
 
             var response = new PdfGenerationResponse
             {
                 JobId = jobId,
                 Status = "Pending",
-                Message = "PDF generation job has been queued",
+                Message = "PDF generation job has been queued. You will receive an email when it's ready.",
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -155,12 +165,15 @@ public class PDFController(
     /// <returns>Job status and result if completed.</returns>
     /// <response code="200">Returns the job status. If completed, PDF can be downloaded.</response>
     /// <response code="404">If the job is not found.</response>
+    /// <response code="401">If user is not authenticated.</response>
     [HttpGet("jobs/{jobId}")]
     [ProducesResponseType(typeof(PdfGenerationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult> GetJobStatus(string jobId)
     {
-        var job = await _jobService.GetJobAsync(jobId);
+        var userId = GetUserId();
+        var job = await _jobService.GetJobAsync(jobId, userId);
 
         if (job == null)
         {
@@ -173,10 +186,11 @@ public class PDFController(
             Status = job.Status.ToString(),
             Message = job.Status switch
             {
-                JobStatus.Pending => "Job is waiting to be processed",
-                JobStatus.Processing => "Job is currently being processed",
-                JobStatus.Completed => "Job completed successfully. Download the PDF using /pdf/jobs/{jobId}/download",
-                JobStatus.Failed => $"Job failed: {job.ErrorMessage}",
+                Data.Entities.JobStatus.Pending => "Job is waiting to be processed",
+                Data.Entities.JobStatus.Processing => "Job is currently being processed",
+                Data.Entities.JobStatus.Completed => "Job completed successfully. Download the PDF using /pdf/jobs/{jobId}/download. Email has been sent.",
+                Data.Entities.JobStatus.Failed => $"Job failed: {job.ErrorMessage}",
+                Data.Entities.JobStatus.Cancelled => "Job was cancelled",
                 _ => "Unknown status"
             },
             CreatedAt = job.CreatedAt
@@ -193,25 +207,30 @@ public class PDFController(
     /// <response code="200">Returns the PDF file.</response>
     /// <response code="404">If the job is not found.</response>
     /// <response code="400">If the job is not yet completed.</response>
+    /// <response code="401">If user is not authenticated.</response>
     [HttpGet("jobs/{jobId}/download")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult> DownloadPdf(string jobId)
     {
-        var job = await _jobService.GetJobAsync(jobId);
+        var userId = GetUserId();
+        var job = await _jobService.GetJobAsync(jobId, userId);
 
         if (job == null)
         {
             return NotFound(new { error = "Job not found" });
         }
 
-        if (job.Status != JobStatus.Completed)
+        if (job.Status != Data.Entities.JobStatus.Completed)
         {
             return BadRequest(new { error = $"Job is not completed. Current status: {job.Status}" });
         }
 
-        if (job.PdfBytes == null)
+        var pdfBytes = await _jobService.GetPdfBytesAsync(jobId, userId);
+
+        if (pdfBytes == null)
         {
             return StatusCode(500, new { error = "PDF data is not available" });
         }
@@ -223,7 +242,7 @@ public class PDFController(
             filename += ".pdf";
         }
 
-        return File(job.PdfBytes, Constants.PDF, filename);
+        return File(pdfBytes, Constants.PDF, filename);
     }
 
     /// <summary>
@@ -234,13 +253,16 @@ public class PDFController(
     /// <response code="200">If the job was successfully cancelled.</response>
     /// <response code="400">If the job cannot be cancelled (already processing or completed).</response>
     /// <response code="404">If the job is not found.</response>
+    /// <response code="401">If user is not authenticated.</response>
     [HttpDelete("jobs/{jobId}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult> CancelJob(string jobId)
     {
-        var cancelled = await _jobService.CancelJobAsync(jobId);
+        var userId = GetUserId();
+        var cancelled = await _jobService.CancelJobAsync(jobId, userId);
 
         if (!cancelled)
         {
