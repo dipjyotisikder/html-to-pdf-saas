@@ -26,6 +26,18 @@ public class PdfMaker : IPdfMaker
     }
 
     /// <inheritdoc />
+    public byte[] CreatePDF(string htmlContent, string orientation = "Portrait", string paperSize = "A4")
+    {
+        if (string.IsNullOrWhiteSpace(htmlContent))
+        {
+            throw new ArgumentException("HTML content cannot be null or empty.", nameof(htmlContent));
+        }
+
+        var document = GetObjectSettings(htmlContent, orientation, paperSize);
+        return _converter.Convert(document);
+    }
+
+    /// <inheritdoc />
     public byte[] CreateChunkedPDF()
     {
         var data = GetData();
@@ -172,14 +184,28 @@ public class PdfMaker : IPdfMaker
     /// Creates the settings for the HTML to PDF conversion.
     /// </summary>
     /// <param name="htmlContent">The HTML content to be converted.</param>
+    /// <param name="orientation">Paper orientation (Portrait or Landscape).</param>
+    /// <param name="paperSize">Paper size (A4, A3, Letter, Legal).</param>
     /// <returns>An HtmlToPdfDocument object containing the settings.</returns>
-    private static HtmlToPdfDocument GetObjectSettings(string htmlContent)
+    private static HtmlToPdfDocument GetObjectSettings(string htmlContent, string orientation = "Portrait", string paperSize = "A4")
     {
+        var orientationEnum = orientation.Equals("Landscape", StringComparison.OrdinalIgnoreCase) 
+            ? Orientation.Landscape 
+            : Orientation.Portrait;
+
+        var paperKind = paperSize.ToUpperInvariant() switch
+        {
+            "A3" => PaperKind.A3,
+            "LETTER" => PaperKind.Letter,
+            "LEGAL" => PaperKind.Legal,
+            _ => PaperKind.A4
+        };
+
         var globalSettings = new GlobalSettings
         {
             ColorMode = ColorMode.Color,
-            Orientation = Orientation.Portrait,
-            PaperSize = PaperKind.A4,
+            Orientation = orientationEnum,
+            PaperSize = paperKind,
             Margins = new MarginSettings { Top = 10, Bottom = 10, Left = 10, Right = 10 },
             DocumentTitle = "TABLE",
         };
