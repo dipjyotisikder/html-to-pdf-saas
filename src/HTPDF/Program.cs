@@ -8,7 +8,6 @@ using HTPDF.Infrastructure.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Infrastructure Services
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -21,7 +20,6 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
-// Initialize Database (Migrations and Seeding)
 await app.InitializeDatabaseAsync();
 
 if (app.Environment.IsDevelopment())
