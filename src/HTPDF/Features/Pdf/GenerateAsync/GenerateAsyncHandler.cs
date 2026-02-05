@@ -1,7 +1,9 @@
 using Ganss.Xss;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using System.Threading.Channels;
 
 namespace HTPDF.Features.Pdf.GenerateAsync;
@@ -11,7 +13,7 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
     private readonly ApplicationDbContext _context;
     private readonly HtmlSanitizer _sanitizer;
     private readonly Channel<string> _jobQueue;
-    private readonly ILogger<GenerateAsyncHandler> _logger;
+    private readonly ILoggingService<GenerateAsyncHandler> _logger;
     private readonly int _retentionDays;
 
     public GenerateAsyncHandler(
@@ -19,7 +21,8 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
         HtmlSanitizer sanitizer,
         Channel<string> jobQueue,
         IConfiguration configuration,
-        ILogger<GenerateAsyncHandler> logger)
+        ILoggingService<GenerateAsyncHandler> logger)
+
     {
         _context = context;
         _sanitizer = sanitizer;
@@ -50,9 +53,10 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
 
         await _jobQueue.Writer.WriteAsync(jobId, cancellationToken);
 
-        _logger.LogInformation("Job {JobId} Submitted For User {UserId}", jobId, request.UserId);
+        _logger.LogInfo(LogMessages.Pdf.JobCreated, jobId, request.UserId);
 
         return new GenerateAsyncResult(
+
             jobId,
             "Pending",
             "PDF Generation Job Has Been Queued. You Will Receive An Email When It's Ready.",

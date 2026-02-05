@@ -1,5 +1,7 @@
 using HTPDF.Infrastructure.Database;
+using HTPDF.Infrastructure.Logging;
 using HTPDF.Infrastructure.Storage;
+
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,12 +11,13 @@ public class DeleteJobHandler : IRequestHandler<DeleteJobCommand, DeleteJobResul
 {
     private readonly ApplicationDbContext _context;
     private readonly IFileStorage _fileStorage;
-    private readonly ILogger<DeleteJobHandler> _logger;
+    private readonly ILoggingService<DeleteJobHandler> _logger;
 
     public DeleteJobHandler(
         ApplicationDbContext context,
         IFileStorage fileStorage,
-        ILogger<DeleteJobHandler> logger)
+        ILoggingService<DeleteJobHandler> logger)
+
     {
         _context = context;
         _fileStorage = fileStorage;
@@ -36,18 +39,19 @@ public class DeleteJobHandler : IRequestHandler<DeleteJobCommand, DeleteJobResul
             try
             {
                 await _fileStorage.DeleteAsync(job.FilePath, cancellationToken);
-                _logger.LogInformation("Deleted PDF File {FilePath} For Job {JobId}", job.FilePath, job.JobId);
+                _logger.LogInfo(LogMessages.Pdf.FileDeleted, job.FilePath, job.JobId);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed To Delete PDF File {FilePath} For Job {JobId}", job.FilePath, job.JobId);
+                _logger.LogWarning(ex, LogMessages.Pdf.FileDeleteFailed, job.FilePath, job.JobId);
             }
         }
 
         _context.PdfJobs.Remove(job);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Job {JobId} Deleted By User {UserId}", request.JobId, request.UserId);
+        _logger.LogInfo(LogMessages.Pdf.JobDeleted, request.JobId, request.UserId);
+
 
         return new DeleteJobResult(true, "Job Deleted Successfully");
     }

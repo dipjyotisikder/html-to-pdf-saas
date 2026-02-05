@@ -1,6 +1,8 @@
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace HTPDF.Features.Pdf.GetUserJobs;
@@ -8,11 +10,12 @@ namespace HTPDF.Features.Pdf.GetUserJobs;
 public class GetUserJobsHandler : IRequestHandler<GetUserJobsQuery, GetUserJobsResult>
 {
     private readonly ApplicationDbContext _context;
-    private readonly ILogger<GetUserJobsHandler> _logger;
+    private readonly ILoggingService<GetUserJobsHandler> _logger;
 
     public GetUserJobsHandler(
         ApplicationDbContext context,
-        ILogger<GetUserJobsHandler> logger)
+        ILoggingService<GetUserJobsHandler> logger)
+
     {
         _context = context;
         _logger = logger;
@@ -56,9 +59,10 @@ public class GetUserJobsHandler : IRequestHandler<GetUserJobsQuery, GetUserJobsR
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize);
 
-        _logger.LogInformation("Retrieved {Count} Jobs For User {UserId}", jobs.Count, request.UserId);
+        _logger.LogInfo(LogMessages.Pdf.UserJobsRetrieved, jobs.Count, request.UserId);
 
         return new GetUserJobsResult(
+
             jobs,
             totalCount,
             request.PageNumber,

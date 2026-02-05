@@ -2,6 +2,8 @@ using MailKit.Net.Smtp;
 using MimeKit;
 using Polly;
 using Polly.Retry;
+using HTPDF.Infrastructure.Logging;
+
 
 namespace HTPDF.Infrastructure.Email;
 
@@ -14,10 +16,10 @@ public class SmtpEmailSender : IEmailSender
     private readonly string _password;
     private readonly string _fromEmail;
     private readonly string _fromName;
-    private readonly ILogger<SmtpEmailSender> _logger;
+    private readonly ILoggingService<SmtpEmailSender> _logger;
     private readonly AsyncRetryPolicy _retryPolicy;
 
-    public SmtpEmailSender(IConfiguration configuration, ILogger<SmtpEmailSender> logger)
+    public SmtpEmailSender(IConfiguration configuration, ILoggingService<SmtpEmailSender> logger)
     {
         _smtpHost = configuration["EmailSettings:SmtpHost"]!;
         _smtpPort = configuration.GetValue<int>("EmailSettings:SmtpPort");
@@ -35,9 +37,10 @@ public class SmtpEmailSender : IEmailSender
                 sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
                 onRetry: (exception, timeSpan, retryCount, context) =>
                 {
-                    _logger.LogWarning(exception, "Email Send Attempt {RetryCount} Failed. Waiting {TimeSpan} Before Next Retry", retryCount, timeSpan);
+                    _logger.LogWarning(exception, LogMessages.Infrastructure.EmailSendRetry, retryCount, timeSpan);
                 });
     }
+
 
     public async Task<bool> SendAsync(string to, string subject, string body, string? attachmentPath = null, string? attachmentFilename = null, CancellationToken cancellationToken = default)
     {
@@ -65,14 +68,15 @@ public class SmtpEmailSender : IEmailSender
                 await client.SendAsync(message, cancellationToken);
                 await client.DisconnectAsync(true, cancellationToken);
 
-                _logger.LogInformation("Email Sent Successfully To {ToEmail}", to);
+                _logger.LogInfo(LogMessages.Infrastructure.EmailSentSuccess, to);
                 return true;
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed To Send Email To {ToEmail} After Retries", to);
+            _logger.LogError(ex, LogMessages.Infrastructure.EmailSendFailed, to);
             return false;
         }
     }
+
 }

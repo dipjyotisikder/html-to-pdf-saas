@@ -1,6 +1,8 @@
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace HTPDF.Features.Pdf.GetDashboard;
@@ -8,11 +10,12 @@ namespace HTPDF.Features.Pdf.GetDashboard;
 public class GetDashboardHandler : IRequestHandler<GetDashboardQuery, DashboardResult>
 {
     private readonly ApplicationDbContext _context;
-    private readonly ILogger<GetDashboardHandler> _logger;
+    private readonly ILoggingService<GetDashboardHandler> _logger;
 
     public GetDashboardHandler(
         ApplicationDbContext context,
-        ILogger<GetDashboardHandler> logger)
+        ILoggingService<GetDashboardHandler> logger)
+
     {
         _context = context;
         _logger = logger;
@@ -52,9 +55,9 @@ public class GetDashboardHandler : IRequestHandler<GetDashboardQuery, DashboardR
             ))
             .ToList();
 
-        _logger.LogInformation("Dashboard Loaded For User {UserId} - {TotalJobs} Total Jobs",
-            request.UserId, stats.TotalJobs);
+        _logger.LogInfo(LogMessages.Pdf.DashboardLoaded, request.UserId, stats.TotalJobs);
 
         return new DashboardResult(stats, recentJobs);
+
     }
 }

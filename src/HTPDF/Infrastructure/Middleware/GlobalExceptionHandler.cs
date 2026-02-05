@@ -1,16 +1,19 @@
 using FluentValidation;
+using HTPDF.Infrastructure.Logging;
 using Microsoft.AspNetCore.Mvc;
+
 
 namespace HTPDF.Infrastructure.Middleware;
 
 public class GlobalExceptionHandler : IMiddleware
 {
-    private readonly ILogger<GlobalExceptionHandler> _logger;
+    private readonly ILoggingService<GlobalExceptionHandler> _logger;
 
-    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    public GlobalExceptionHandler(ILoggingService<GlobalExceptionHandler> logger)
     {
         _logger = logger;
     }
+
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
@@ -20,9 +23,10 @@ public class GlobalExceptionHandler : IMiddleware
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning(ex, "Validation Error");
+            _logger.LogWarning(ex, LogMessages.Infrastructure.ValidationError);
 
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
+
             context.Response.ContentType = "application/json";
 
             var problemDetails = new ValidationProblemDetails
@@ -41,18 +45,20 @@ public class GlobalExceptionHandler : IMiddleware
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "Unauthorized Access");
+            _logger.LogWarning(ex, LogMessages.Infrastructure.UnauthorizedAccess);
 
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
             context.Response.ContentType = "application/json";
 
             await context.Response.WriteAsJsonAsync(new { Error = "Unauthorized Access" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled Exception");
+            _logger.LogError(ex, LogMessages.Infrastructure.UnhandledException);
 
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
             context.Response.ContentType = "application/json";
 
             await context.Response.WriteAsJsonAsync(new { Error = "An Error Occurred While Processing Your Request" });

@@ -1,3 +1,4 @@
+using HTPDF.Infrastructure.Logging;
 using HTPDF.Infrastructure.Storage;
 
 namespace HTPDF.Infrastructure.BackgroundJobs;
@@ -5,10 +6,10 @@ namespace HTPDF.Infrastructure.BackgroundJobs;
 public class FileCleanup : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<FileCleanup> _logger;
+    private readonly ILoggingService<FileCleanup> _logger;
     private const int CleanupIntervalHours = 6;
 
-    public FileCleanup(IServiceScopeFactory scopeFactory, ILogger<FileCleanup> logger)
+    public FileCleanup(IServiceScopeFactory scopeFactory, ILoggingService<FileCleanup> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -16,7 +17,7 @@ public class FileCleanup : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("File Cleanup Service Started. Running Every {Interval} Hours", CleanupIntervalHours);
+        _logger.LogInfo(LogMessages.Infrastructure.FileCleanupServiceStarted, CleanupIntervalHours);
 
         await PerformCleanupAsync(stoppingToken);
 
@@ -33,7 +34,7 @@ public class FileCleanup : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error During File Cleanup");
+                _logger.LogError(ex, LogMessages.Infrastructure.FileCleanupError);
             }
         }
     }
@@ -43,10 +44,11 @@ public class FileCleanup : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var fileStorage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
 
-        _logger.LogInformation("Starting File Cleanup");
+        _logger.LogInfo(LogMessages.Infrastructure.FileCleanupStarted);
 
         var deletedCount = await fileStorage.DeleteExpiredAsync(cancellationToken);
 
-        _logger.LogInformation("File Cleanup Completed. Deleted {Count} Files", deletedCount);
+        _logger.LogInfo(LogMessages.Infrastructure.FileCleanupCompleted, deletedCount);
     }
 }
+

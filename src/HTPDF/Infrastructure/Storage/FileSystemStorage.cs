@@ -1,5 +1,7 @@
 using HTPDF.Infrastructure.Database;
+using HTPDF.Infrastructure.Logging;
 using Microsoft.EntityFrameworkCore;
+
 
 namespace HTPDF.Infrastructure.Storage;
 
@@ -7,7 +9,7 @@ public class FileSystemStorage : IFileStorage
 {
     private readonly string _storageRoot;
     private readonly ApplicationDbContext _context;
-    private readonly ILogger<FileSystemStorage> _logger;
+    private readonly ILoggingService<FileSystemStorage> _logger;
     private readonly int _retentionDays;
     private readonly long _maxFileSize;
 
@@ -15,7 +17,7 @@ public class FileSystemStorage : IFileStorage
         IWebHostEnvironment environment,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<FileSystemStorage> logger)
+        ILoggingService<FileSystemStorage> logger)
     {
         var storagePath = configuration["FileStorageSettings:StoragePath"] ?? "Storage/PDFs";
         _storageRoot = Path.Combine(environment.ContentRootPath, storagePath);
@@ -27,9 +29,10 @@ public class FileSystemStorage : IFileStorage
         if (!Directory.Exists(_storageRoot))
         {
             Directory.CreateDirectory(_storageRoot);
-            _logger.LogInformation("Created Storage Directory: {Path}", _storageRoot);
+            _logger.LogInfo(LogMessages.Infrastructure.StorageDirectoryCreated, _storageRoot);
         }
     }
+
 
     public async Task<string> SaveAsync(byte[] data, string filename, CancellationToken cancellationToken = default)
     {
@@ -43,9 +46,10 @@ public class FileSystemStorage : IFileStorage
 
         await File.WriteAllBytesAsync(fullPath, data, cancellationToken);
 
-        _logger.LogInformation("PDF Saved Successfully: {FilePath}, Size: {Size} Bytes", fullPath, data.Length);
+        _logger.LogInfo(LogMessages.Infrastructure.PdfSaved, fullPath, data.Length);
 
         return Path.Combine("Storage/PDFs", uniqueFilename);
+
     }
 
     public async Task<byte[]?> ReadAsync(string filePath, CancellationToken cancellationToken = default)
@@ -54,9 +58,10 @@ public class FileSystemStorage : IFileStorage
 
         if (!File.Exists(fullPath))
         {
-            _logger.LogWarning("PDF File Not Found: {FilePath}", fullPath);
+            _logger.LogWarning(LogMessages.Infrastructure.PdfNotFound, fullPath);
             return null;
         }
+
 
         return await File.ReadAllBytesAsync(fullPath, cancellationToken);
     }
@@ -67,14 +72,16 @@ public class FileSystemStorage : IFileStorage
 
         if (!File.Exists(fullPath))
         {
-            _logger.LogWarning("PDF File Not Found For Deletion: {FilePath}", fullPath);
+            _logger.LogWarning(LogMessages.Infrastructure.PdfNotFoundForDeletion, fullPath);
             return false;
         }
 
+
         await Task.Run(() => File.Delete(fullPath), cancellationToken);
-        _logger.LogInformation("PDF File Deleted: {FilePath}", fullPath);
+        _logger.LogInfo(LogMessages.Infrastructure.PdfDeleted, fullPath);
         return true;
     }
+
 
     public async Task<int> DeleteExpiredAsync(CancellationToken cancellationToken = default)
     {
@@ -97,8 +104,9 @@ public class FileSystemStorage : IFileStorage
         if (deletedCount > 0)
         {
             await _context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Deleted {Count} Expired PDF Files", deletedCount);
+            _logger.LogInfo(LogMessages.Infrastructure.ExpiredPdfsDeleted, deletedCount);
         }
+
 
         return deletedCount;
     }

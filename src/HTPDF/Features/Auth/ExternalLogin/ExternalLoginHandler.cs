@@ -1,7 +1,9 @@
 using HTPDF.Features.Auth.Register;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -16,13 +18,14 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<ExternalLoginHandler> _logger;
+    private readonly ILoggingService<ExternalLoginHandler> _logger;
 
     public ExternalLoginHandler(
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<ExternalLoginHandler> logger)
+        ILoggingService<ExternalLoginHandler> logger)
+
     {
         _userManager = userManager;
         _context = context;
@@ -54,9 +57,10 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
 
             await _userManager.AddToRoleAsync(user, "User");
 
-            _logger.LogInformation("New User Created Via {Provider}: {Email}", request.Provider, request.Email);
+            _logger.LogInfo(LogMessages.Auth.NewUserCreatedViaProvider, request.Provider, request.Email);
         }
         else if (!user.IsActive)
+
         {
             return new ExternalLoginResult(false, "Account Is Inactive. Please Contact Support.", null);
         }
@@ -73,9 +77,10 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
             }
         }
 
-        _logger.LogInformation("User {Email} Logged In Via {Provider}", request.Email, request.Provider);
+        _logger.LogInfo(LogMessages.Auth.ExternalLoginSuccess, request.Email, request.Provider);
 
         var tokens = await GenerateTokensAsync(user);
+
 
         return new ExternalLoginResult(true, "External Login Successful", tokens);
     }
