@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src\HTPDF\HTPDF.csproj" Type="C#" />
+    <Project Path="src\HTPDF\HTPDF.csproj" />
   </Folder>
   <Properties Name="Configuration">
     <Property Name="SolutionConfigurationPlatforms" Value="Debug|Any CPU;Release|Any CPU" />
