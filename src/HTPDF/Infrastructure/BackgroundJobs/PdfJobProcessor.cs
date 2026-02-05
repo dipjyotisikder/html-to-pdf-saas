@@ -90,8 +90,8 @@ public class PdfJobProcessor : BackgroundService
 
     private static byte[] ConvertHtmlToPdf(IConverter converter, string htmlContent, string orientation, string paperSize)
     {
-        var orientationEnum = orientation.Equals("Landscape", StringComparison.OrdinalIgnoreCase) 
-            ? Orientation.Landscape 
+        var orientationEnum = orientation.Equals("Landscape", StringComparison.OrdinalIgnoreCase)
+            ? Orientation.Landscape
             : Orientation.Portrait;
 
         var paperKind = paperSize.ToUpperInvariant() switch

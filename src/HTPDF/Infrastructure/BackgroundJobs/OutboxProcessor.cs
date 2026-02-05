@@ -126,7 +126,7 @@ public class OutboxProcessor : BackgroundService
         {
             var delayMinutes = _baseRetryDelayMinutes * Math.Pow(_backoffMultiplier, message.AttemptCount - 1);
             message.NextRetryAt = DateTime.UtcNow.AddMinutes(delayMinutes);
-            _logger.LogWarning("Outbox Message {MessageId} Failed, Will Retry (Attempt {Attempt}/{Max}). Next Retry At {NextRetry}", 
+            _logger.LogWarning("Outbox Message {MessageId} Failed, Will Retry (Attempt {Attempt}/{Max}). Next Retry At {NextRetry}",
                 message.Id, message.AttemptCount, _maxRetryAttempts, message.NextRetryAt);
         }
 
@@ -146,7 +146,7 @@ public class OutboxProcessor : BackgroundService
                     <p>Your PDF Will Be Available For Download For The Next 7 Days.</p>
                 </body>
                 </html>",
-            
+
             "PdfFailed" => $@"
                 <html>
                 <body style='font-family: Arial, sans-serif;'>
@@ -156,7 +156,7 @@ public class OutboxProcessor : BackgroundService
                     <p>Please Try Again Or Contact Support If The Problem Persists.</p>
                 </body>
                 </html>",
-            
+
             _ => message.EmailBody
         };
     }
