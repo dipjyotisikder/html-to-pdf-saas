@@ -1,3 +1,4 @@
+using FluentValidation;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using MediatR;
@@ -8,22 +9,25 @@ namespace HTPDF.Features.Pdf.GetStatus;
 public class GetStatusHandler : IRequestHandler<GetStatusQuery, GetStatusResult?>
 {
     private readonly ApplicationDbContext _context;
+    private readonly IValidator<GetStatusQuery> _validator;
 
-    public GetStatusHandler(ApplicationDbContext context)
+    public GetStatusHandler(ApplicationDbContext context, IValidator<GetStatusQuery> validator)
     {
         _context = context;
+        _validator = validator;
     }
 
     public async Task<GetStatusResult?> Handle(GetStatusQuery request, CancellationToken cancellationToken)
     {
-        var job = await _context.PdfJobs
-            .Where(j => j.JobId == request.JobId && j.UserId == request.UserId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (job == null)
+        var validationResult = await _validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
         {
-            return null;
+            throw new ValidationException(validationResult.Errors);
         }
+
+        var job = await _context.PdfJobs
+            .FirstAsync(j => j.JobId == request.JobId && j.UserId == request.UserId, cancellationToken);
+
 
         var message = job.Status switch
         {

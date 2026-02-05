@@ -1,14 +1,21 @@
 using FluentValidation;
+using HTPDF.Infrastructure.Database.Entities;
+using Microsoft.AspNetCore.Identity;
 
 namespace HTPDF.Features.Auth.Register;
 
 public class RegisterValidator : AbstractValidator<RegisterCommand>
 {
-    public RegisterValidator()
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public RegisterValidator(UserManager<ApplicationUser> userManager)
     {
+        _userManager = userManager;
+
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("Email Is Required")
-            .EmailAddress().WithMessage("Invalid Email Address");
+            .EmailAddress().WithMessage("Invalid Email Address")
+            .MustAsync(BeUniqueEmail).WithMessage("User With This Email Already Exists");
 
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage("Password Is Required")
@@ -23,4 +30,11 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
         RuleFor(x => x.LastName)
             .MaximumLength(100).WithMessage("Last Name Cannot Exceed 100 Characters");
     }
+
+    private async Task<bool> BeUniqueEmail(string email, CancellationToken cancellationToken)
+    {
+        var user = await _userManager.FindByEmailAsync(email);
+        return user == null;
+    }
 }
+

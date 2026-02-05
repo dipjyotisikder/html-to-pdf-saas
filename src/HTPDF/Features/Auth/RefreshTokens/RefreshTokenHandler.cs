@@ -1,11 +1,13 @@
+using FluentValidation;
 using HTPDF.Features.Auth.Register;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
 using MediatR;
-
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -18,29 +20,36 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _context;
-    private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
+    private readonly IValidator<RefreshTokenCommand> _validator;
     private readonly ILoggingService<RefreshTokenHandler> _logger;
 
     public RefreshTokenHandler(
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext context,
-        IConfiguration configuration,
+        IOptions<JwtSettings> options,
+        IValidator<RefreshTokenCommand> validator,
         ILoggingService<RefreshTokenHandler> logger)
 
     {
         _userManager = userManager;
         _context = context;
-        _configuration = configuration;
+        _jwtSettings = options.Value;
+        _validator = validator;
         _logger = logger;
     }
 
     public async Task<RefreshTokenResult> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
-        var jwtSecret = _configuration["JwtSettings:SecretKey"]!;
-        var issuer = _configuration["JwtSettings:Issuer"]!;
-        var audience = _configuration["JwtSettings:Audience"]!;
+        var validationResult = await _validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return new RefreshTokenResult(false, validationResult.Errors.First().ErrorMessage, null);
+        }
 
-        var principal = GetPrincipalFromExpiredToken(request.AccessToken, jwtSecret, issuer, audience);
+        var principal = GetPrincipalFromExpiredToken(request.AccessToken, _jwtSettings.SecretKey, _jwtSettings.Issuer, _jwtSettings.Audience);
+
+
         if (principal == null)
         {
             return new RefreshTokenResult(false, "Invalid Access Token", null);
@@ -128,12 +137,6 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
 
     private async Task<AuthTokens> GenerateTokensAsync(ApplicationUser user)
     {
-        var jwtSecret = _configuration["JwtSettings:SecretKey"]!;
-        var issuer = _configuration["JwtSettings:Issuer"]!;
-        var audience = _configuration["JwtSettings:Audience"]!;
-        var expirationMinutes = int.Parse(_configuration["JwtSettings:AccessTokenExpirationMinutes"]!);
-        var refreshExpirationDays = int.Parse(_configuration["JwtSettings:RefreshTokenExpirationDays"]!);
-
         var roles = await _userManager.GetRolesAsync(user);
         var jwtId = Guid.NewGuid().ToString();
 
@@ -147,14 +150,14 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expirationMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
             signingCredentials: credentials
         );
 
@@ -166,8 +169,9 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
             UserId = user.Id,
             Token = refreshToken,
             JwtId = jwtId,
-            ExpiresAt = DateTime.UtcNow.AddDays(refreshExpirationDays)
+            ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays)
         };
+
 
         _context.RefreshTokens.Add(refreshTokenEntity);
         await _context.SaveChangesAsync();
@@ -175,10 +179,11 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
         return new AuthTokens(
             accessToken,
             refreshToken,
-            expirationMinutes * 60,
+            _jwtSettings.AccessTokenExpirationMinutes * 60,
             user.Email!,
             roles.ToList()
         );
+
     }
 
     private static string GenerateRefreshToken()

@@ -3,31 +3,21 @@ using MimeKit;
 using Polly;
 using Polly.Retry;
 using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
+using Microsoft.Extensions.Options;
 
 
 namespace HTPDF.Infrastructure.Email;
 
 public class SmtpEmailSender : IEmailSender
 {
-    private readonly string _smtpHost;
-    private readonly int _smtpPort;
-    private readonly bool _useSsl;
-    private readonly string _username;
-    private readonly string _password;
-    private readonly string _fromEmail;
-    private readonly string _fromName;
+    private readonly EmailSettings _settings;
     private readonly ILoggingService<SmtpEmailSender> _logger;
     private readonly AsyncRetryPolicy _retryPolicy;
 
-    public SmtpEmailSender(IConfiguration configuration, ILoggingService<SmtpEmailSender> logger)
+    public SmtpEmailSender(IOptions<EmailSettings> options, ILoggingService<SmtpEmailSender> logger)
     {
-        _smtpHost = configuration["EmailSettings:SmtpHost"]!;
-        _smtpPort = configuration.GetValue<int>("EmailSettings:SmtpPort");
-        _useSsl = configuration.GetValue<bool>("EmailSettings:UseSsl");
-        _username = configuration["EmailSettings:Username"]!;
-        _password = configuration["EmailSettings:Password"]!;
-        _fromEmail = configuration["EmailSettings:FromEmail"]!;
-        _fromName = configuration.GetValue<string>("EmailSettings:FromName") ?? "HTML To PDF Service";
+        _settings = options.Value;
         _logger = logger;
 
         _retryPolicy = Policy
@@ -49,7 +39,7 @@ public class SmtpEmailSender : IEmailSender
             return await _retryPolicy.ExecuteAsync(async () =>
             {
                 var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(_fromName, _fromEmail));
+                message.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
                 message.To.Add(new MailboxAddress(to, to));
                 message.Subject = subject;
 
@@ -63,8 +53,8 @@ public class SmtpEmailSender : IEmailSender
                 message.Body = builder.ToMessageBody();
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(_smtpHost, _smtpPort, _useSsl, cancellationToken);
-                await client.AuthenticateAsync(_username, _password, cancellationToken);
+                await client.ConnectAsync(_settings.SmtpHost, _settings.SmtpPort, _settings.UseSsl, cancellationToken);
+                await client.AuthenticateAsync(_settings.Username, _settings.Password, cancellationToken);
                 await client.SendAsync(message, cancellationToken);
                 await client.DisconnectAsync(true, cancellationToken);
 
@@ -78,5 +68,5 @@ public class SmtpEmailSender : IEmailSender
             return false;
         }
     }
-
 }
+
