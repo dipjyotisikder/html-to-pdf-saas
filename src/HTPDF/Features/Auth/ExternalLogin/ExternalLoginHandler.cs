@@ -9,60 +9,75 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace HTPDF.Features.Auth.Login;
+namespace HTPDF.Features.Auth.ExternalLogin;
 
-public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
+public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, ExternalLoginResult>
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<LoginHandler> _logger;
+    private readonly ILogger<ExternalLoginHandler> _logger;
 
-    public LoginHandler(
+    public ExternalLoginHandler(
         UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<LoginHandler> logger)
+        ILogger<ExternalLoginHandler> logger)
     {
         _userManager = userManager;
-        _signInManager = signInManager;
         _context = context;
         _configuration = configuration;
         _logger = logger;
     }
 
-    public async Task<LoginResult> Handle(LoginCommand request, CancellationToken cancellationToken)
+    public async Task<ExternalLoginResult> Handle(ExternalLoginCommand request, CancellationToken cancellationToken)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
+
         if (user == null)
         {
-            return new LoginResult(false, "Invalid Email Or Password", null);
-        }
+            user = new ApplicationUser
+            {
+                UserName = request.Email,
+                Email = request.Email,
+                FirstName = request.FirstName ?? "User",
+                LastName = request.LastName ?? "",
+                EmailConfirmed = true,
+                IsActive = true
+            };
 
-        if (!user.IsActive)
+            var createResult = await _userManager.CreateAsync(user);
+            if (!createResult.Succeeded)
+            {
+                return new ExternalLoginResult(false, "Failed To Create User Account", null);
+            }
+
+            await _userManager.AddToRoleAsync(user, "User");
+
+            _logger.LogInformation("New User Created Via {Provider}: {Email}", request.Provider, request.Email);
+        }
+        else if (!user.IsActive)
         {
-            return new LoginResult(false, "Account Is Inactive. Please Contact Support.", null);
+            return new ExternalLoginResult(false, "Account Is Inactive. Please Contact Support.", null);
         }
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+        var loginInfo = new UserLoginInfo(request.Provider, request.ExternalId, request.Provider);
+        var existingLogin = await _userManager.FindByLoginAsync(loginInfo.LoginProvider, loginInfo.ProviderKey);
 
-        if (result.IsLockedOut)
+        if (existingLogin == null)
         {
-            return new LoginResult(false, "Account Is Locked Out. Please Try Again Later.", null);
+            var addLoginResult = await _userManager.AddLoginAsync(user, loginInfo);
+            if (!addLoginResult.Succeeded)
+            {
+                return new ExternalLoginResult(false, "Failed To Link External Provider", null);
+            }
         }
 
-        if (!result.Succeeded)
-        {
-            return new LoginResult(false, "Invalid Email Or Password", null);
-        }
-
-        _logger.LogInformation("User {Email} Logged In Successfully", request.Email);
+        _logger.LogInformation("User {Email} Logged In Via {Provider}", request.Email, request.Provider);
 
         var tokens = await GenerateTokensAsync(user);
 
-        return new LoginResult(true, "Login Successful", tokens);
+        return new ExternalLoginResult(true, "External Login Successful", tokens);
     }
 
     private async Task<AuthTokens> GenerateTokensAsync(ApplicationUser user)
@@ -100,7 +115,7 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
         var refreshToken = GenerateRefreshToken();
 
-        var refreshTokenEntity = new Infrastructure.Database.Entities.RefreshToken
+        var refreshTokenEntity = new RefreshToken
         {
             UserId = user.Id,
             Token = refreshToken,

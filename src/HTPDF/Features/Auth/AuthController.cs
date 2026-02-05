@@ -1,4 +1,6 @@
+using HTPDF.Features.Auth.ExternalLogin;
 using HTPDF.Features.Auth.Login;
+using HTPDF.Features.Auth.RefreshTokens;
 using HTPDF.Features.Auth.Register;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -34,6 +36,34 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<AuthTokens>> Login([FromBody] LoginCommand command)
+    {
+        var result = await _mediator.Send(command);
+
+        if (!result.Success)
+        {
+            return BadRequest(new { Error = result.Message });
+        }
+
+        return Ok(result.Tokens);
+    }
+
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AuthTokens>> RefreshToken([FromBody] RefreshTokenCommand command)
+    {
+        var result = await _mediator.Send(command);
+
+        if (!result.Success)
+        {
+            return BadRequest(new { Error = result.Message });
+        }
+
+        return Ok(result.Tokens);
+    }
+
+    [HttpPost("external-login")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AuthTokens>> ExternalLogin([FromBody] ExternalLoginCommand command)
     {
         var result = await _mediator.Send(command);
 

@@ -29,10 +29,4 @@
     <PackageReference Include="PdfSharpCore" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Data\Entities\" />
-    <Folder Include="Models\Auth\" />
-    <Folder Include="Services\BackgroundServices\" />
-  </ItemGroup>
-
 </Project>

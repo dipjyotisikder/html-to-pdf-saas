@@ -1,21 +1,21 @@
-using DinkToPdf.Contracts;
+using AspNetCoreRateLimit;
 using DinkToPdf;
+using DinkToPdf.Contracts;
+using FluentValidation;
+using Ganss.Xss;
+using HTPDF.Infrastructure.BackgroundJobs;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
-using HTPDF.Infrastructure.Storage;
 using HTPDF.Infrastructure.Email;
-using HTPDF.Infrastructure.BackgroundJobs;
-using AspNetCoreRateLimit;
-using Microsoft.OpenApi.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
+using HTPDF.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Reflection;
 using System.Text;
 using System.Threading.Channels;
-using Ganss.Xss;
-using FluentValidation;
-using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -103,9 +103,9 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo 
-    { 
-        Title = "HTML To PDF API", 
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "HTML To PDF API",
         Version = "v3.0",
         Description = "Vertical Slice Architecture With Clean Code"
     });

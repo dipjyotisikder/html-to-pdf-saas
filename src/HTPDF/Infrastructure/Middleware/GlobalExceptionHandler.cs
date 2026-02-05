@@ -21,7 +21,7 @@ public class GlobalExceptionHandler : IMiddleware
         catch (ValidationException ex)
         {
             _logger.LogWarning(ex, "Validation Error");
-            
+
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             context.Response.ContentType = "application/json";
 
@@ -42,7 +42,7 @@ public class GlobalExceptionHandler : IMiddleware
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "Unauthorized Access");
-            
+
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
 
@@ -51,7 +51,7 @@ public class GlobalExceptionHandler : IMiddleware
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled Exception");
-            
+
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/json";
 
