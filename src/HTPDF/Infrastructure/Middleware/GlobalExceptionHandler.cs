@@ -1,6 +1,5 @@
 using FluentValidation;
 using HTPDF.Infrastructure.Logging;
-using Microsoft.AspNetCore.Mvc;
 
 
 namespace HTPDF.Infrastructure.Middleware;

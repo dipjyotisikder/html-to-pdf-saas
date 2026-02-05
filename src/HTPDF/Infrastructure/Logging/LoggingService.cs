@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace HTPDF.Infrastructure.Logging;
 
 public class LoggingService<T> : ILoggingService<T>

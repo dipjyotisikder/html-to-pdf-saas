@@ -1,10 +1,10 @@
+using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
 using MailKit.Net.Smtp;
+using Microsoft.Extensions.Options;
 using MimeKit;
 using Polly;
 using Polly.Retry;
-using HTPDF.Infrastructure.Logging;
-using HTPDF.Infrastructure.Settings;
-using Microsoft.Extensions.Options;
 
 
 namespace HTPDF.Infrastructure.Email;

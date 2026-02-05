@@ -1,5 +1,3 @@
-using System;
-
 namespace HTPDF.Infrastructure.Logging;
 
 public interface ILoggingService<T>
