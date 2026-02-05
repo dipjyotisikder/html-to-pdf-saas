@@ -161,7 +161,7 @@ html-to-pdf-dotnet/
 │       └── Services/              # Application services
 ├── Directory.Build.props          # Common build properties
 ├── Directory.Packages.props       # Central package management
-└── HTPDF.sln                      # Solution file
+└── HTPDF.slnx                     # Solution file (XML format)
 ```
 
 ## Configuration
