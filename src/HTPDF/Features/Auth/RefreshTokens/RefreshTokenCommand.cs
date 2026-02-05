@@ -1,4 +1,5 @@
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Auth.RefreshTokens;
@@ -6,10 +7,5 @@ namespace HTPDF.Features.Auth.RefreshTokens;
 public record RefreshTokenCommand(
     string AccessToken,
     string RefreshToken
-) : IRequest<RefreshTokenResult>;
+) : IRequest<Result<AuthTokens>>;
 
-public record RefreshTokenResult(
-    bool Success,
-    string Message,
-    AuthTokens? Tokens
-);

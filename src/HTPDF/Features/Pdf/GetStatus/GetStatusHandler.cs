@@ -1,4 +1,5 @@
 using FluentValidation;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using MediatR;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HTPDF.Features.Pdf.GetStatus;
 
-public class GetStatusHandler : IRequestHandler<GetStatusQuery, GetStatusResult?>
+public class GetStatusHandler : IRequestHandler<GetStatusQuery, Result<GetStatusResult>>
 {
     private readonly ApplicationDbContext _context;
     private readonly IValidator<GetStatusQuery> _validator;
@@ -17,17 +18,16 @@ public class GetStatusHandler : IRequestHandler<GetStatusQuery, GetStatusResult?
         _validator = validator;
     }
 
-    public async Task<GetStatusResult?> Handle(GetStatusQuery request, CancellationToken cancellationToken)
+    public async Task<Result<GetStatusResult>> Handle(GetStatusQuery request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            throw new ValidationException(validationResult.Errors);
+            return Result<GetStatusResult>.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var job = await _context.PdfJobs
             .FirstAsync(j => j.JobId == request.JobId && j.UserId == request.UserId, cancellationToken);
-
 
         var message = job.Status switch
         {
@@ -39,12 +39,15 @@ public class GetStatusHandler : IRequestHandler<GetStatusQuery, GetStatusResult?
             _ => "Unknown Status"
         };
 
-        return new GetStatusResult(
+        var result = new GetStatusResult(
             job.JobId,
             job.Status.ToString(),
             message,
             job.CreatedAt,
             job.CompletedAt
         );
+
+        return Result<GetStatusResult>.Success(result);
     }
 }
+

@@ -1,3 +1,4 @@
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Pdf.GetUserJobs;
@@ -7,7 +8,8 @@ public record GetUserJobsQuery(
     int PageNumber = 1,
     int PageSize = 20,
     string? Status = null
-) : IRequest<GetUserJobsResult>;
+) : IRequest<Result<GetUserJobsResult>>;
+
 
 public record GetUserJobsResult(
     List<JobSummary> Jobs,

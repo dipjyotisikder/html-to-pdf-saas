@@ -1,5 +1,6 @@
 using FluentValidation;
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
@@ -16,7 +17,7 @@ using System.Text;
 
 namespace HTPDF.Features.Auth.RefreshTokens;
 
-public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshTokenResult>
+public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, Result<AuthTokens>>
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _context;
@@ -39,12 +40,12 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
         _logger = logger;
     }
 
-    public async Task<RefreshTokenResult> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
+    public async Task<Result<AuthTokens>> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return new RefreshTokenResult(false, validationResult.Errors.First().ErrorMessage, null);
+            return Result<AuthTokens>.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var principal = GetPrincipalFromExpiredToken(request.AccessToken, _jwtSettings.SecretKey, _jwtSettings.Issuer, _jwtSettings.Audience);
@@ -52,7 +53,7 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
 
         if (principal == null)
         {
-            return new RefreshTokenResult(false, "Invalid Access Token", null);
+            return Result<AuthTokens>.Failure("The provided access token is invalid.");
         }
 
         var jwtId = principal.Claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Jti)?.Value;
@@ -60,7 +61,7 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
 
         if (string.IsNullOrEmpty(jwtId) || string.IsNullOrEmpty(userId))
         {
-            return new RefreshTokenResult(false, "Invalid Token Claims", null);
+            return Result<AuthTokens>.Failure("Token claims are missing or invalid.");
         }
 
         var storedRefreshToken = await _context.RefreshTokens
@@ -68,22 +69,22 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
 
         if (storedRefreshToken == null)
         {
-            return new RefreshTokenResult(false, "Refresh Token Does Not Exist", null);
+            return Result<AuthTokens>.Failure("Refresh Token Does Not Exist");
         }
 
         if (storedRefreshToken.IsUsed)
         {
-            return new RefreshTokenResult(false, "Refresh Token Already Used", null);
+            return Result<AuthTokens>.Failure("Refresh Token Already Used");
         }
 
         if (storedRefreshToken.IsRevoked)
         {
-            return new RefreshTokenResult(false, "Refresh Token Has Been Revoked", null);
+            return Result<AuthTokens>.Failure("Refresh Token Has Been Revoked");
         }
 
         if (storedRefreshToken.ExpiresAt < DateTime.UtcNow)
         {
-            return new RefreshTokenResult(false, "Refresh Token Has Expired", null);
+            return Result<AuthTokens>.Failure("Refresh Token Has Expired");
         }
 
         storedRefreshToken.IsUsed = true;
@@ -92,7 +93,7 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
         var user = await _userManager.FindByIdAsync(userId);
         if (user == null || !user.IsActive)
         {
-            return new RefreshTokenResult(false, "User Not Found Or Inactive", null);
+            return Result<AuthTokens>.Failure("User Not Found Or Inactive");
         }
 
         _logger.LogInfo(LogMessages.Auth.RefreshTokenUsed, user.Email);
@@ -100,8 +101,9 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
         var tokens = await GenerateTokensAsync(user);
 
 
-        return new RefreshTokenResult(true, "Token Refreshed Successfully", tokens);
+        return Result<AuthTokens>.Success(tokens, "Token Refreshed Successfully");
     }
+
 
     private static ClaimsPrincipal? GetPrincipalFromExpiredToken(string token, string secret, string issuer, string audience)
     {

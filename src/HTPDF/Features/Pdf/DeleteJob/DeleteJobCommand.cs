@@ -1,3 +1,4 @@
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Pdf.DeleteJob;
@@ -5,9 +6,5 @@ namespace HTPDF.Features.Pdf.DeleteJob;
 public record DeleteJobCommand(
     string JobId,
     string UserId
-) : IRequest<DeleteJobResult>;
+) : IRequest<Result>;
 
-public record DeleteJobResult(
-    bool Success,
-    string Message
-);

@@ -1,3 +1,4 @@
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Pdf.GetStatus;
@@ -5,7 +6,8 @@ namespace HTPDF.Features.Pdf.GetStatus;
 public record GetStatusQuery(
     string JobId,
     string UserId
-) : IRequest<GetStatusResult?>;
+) : IRequest<Result<GetStatusResult>>;
+
 
 public record GetStatusResult(
     string JobId,

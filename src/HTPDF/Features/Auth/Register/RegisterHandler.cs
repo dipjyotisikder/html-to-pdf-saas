@@ -1,4 +1,5 @@
 using FluentValidation;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
 using HTPDF.Infrastructure.Settings;
@@ -13,7 +14,7 @@ using System.Text;
 
 namespace HTPDF.Features.Auth.Register;
 
-public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
+public class RegisterHandler : IRequestHandler<RegisterCommand, Result<AuthTokens>>
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly JwtSettings _jwtSettings;
@@ -33,12 +34,12 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
         _logger = logger;
     }
 
-    public async Task<RegisterResult> Handle(RegisterCommand request, CancellationToken cancellationToken)
+    public async Task<Result<AuthTokens>> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return new RegisterResult(false, validationResult.Errors.First().ErrorMessage, null);
+            return Result<AuthTokens>.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var user = new ApplicationUser
@@ -55,8 +56,7 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
 
         if (!result.Succeeded)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            return new RegisterResult(false, $"Registration Failed: {errors}", null);
+            return Result<AuthTokens>.Failure("User registration failed. Please ensure your password meets the requirements.");
         }
 
         await _userManager.AddToRoleAsync(user, "User");
@@ -66,8 +66,9 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
         var tokens = await GenerateTokensAsync(user);
 
 
-        return new RegisterResult(true, "Registration Successful", tokens);
+        return Result<AuthTokens>.Success(tokens, "Registration Successful");
     }
+
 
     private async Task<AuthTokens> GenerateTokensAsync(ApplicationUser user)
     {

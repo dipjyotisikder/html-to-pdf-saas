@@ -1,13 +1,13 @@
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
 using MediatR;
-
 using Microsoft.EntityFrameworkCore;
 
 namespace HTPDF.Features.Pdf.GetDashboard;
 
-public class GetDashboardHandler : IRequestHandler<GetDashboardQuery, DashboardResult>
+public class GetDashboardHandler : IRequestHandler<GetDashboardQuery, Result<DashboardResult>>
 {
     private readonly ApplicationDbContext _context;
     private readonly ILoggingService<GetDashboardHandler> _logger;
@@ -21,7 +21,7 @@ public class GetDashboardHandler : IRequestHandler<GetDashboardQuery, DashboardR
         _logger = logger;
     }
 
-    public async Task<DashboardResult> Handle(GetDashboardQuery request, CancellationToken cancellationToken)
+    public async Task<Result<DashboardResult>> Handle(GetDashboardQuery request, CancellationToken cancellationToken)
     {
         var userJobs = await _context.PdfJobs
             .Where(j => j.UserId == request.UserId)
@@ -57,7 +57,8 @@ public class GetDashboardHandler : IRequestHandler<GetDashboardQuery, DashboardR
 
         _logger.LogInfo(LogMessages.Pdf.DashboardLoaded, request.UserId, stats.TotalJobs);
 
-        return new DashboardResult(stats, recentJobs);
+        return Result<DashboardResult>.Success(new DashboardResult(stats, recentJobs));
 
     }
 }
+

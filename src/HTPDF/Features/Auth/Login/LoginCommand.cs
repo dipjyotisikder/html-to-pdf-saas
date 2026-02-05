@@ -1,4 +1,5 @@
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Auth.Login;
@@ -6,10 +7,5 @@ namespace HTPDF.Features.Auth.Login;
 public record LoginCommand(
     string Email,
     string Password
-) : IRequest<LoginResult>;
+) : IRequest<Result<AuthTokens>>;
 
-public record LoginResult(
-    bool Success,
-    string Message,
-    AuthTokens? Tokens
-);

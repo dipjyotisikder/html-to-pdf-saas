@@ -1,5 +1,6 @@
 using FluentValidation;
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
@@ -15,7 +16,7 @@ using System.Text;
 
 namespace HTPDF.Features.Auth.ExternalLogin;
 
-public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, ExternalLoginResult>
+public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Result<AuthTokens>>
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _context;
@@ -38,12 +39,12 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
         _logger = logger;
     }
 
-    public async Task<ExternalLoginResult> Handle(ExternalLoginCommand request, CancellationToken cancellationToken)
+    public async Task<Result<AuthTokens>> Handle(ExternalLoginCommand request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return new ExternalLoginResult(false, validationResult.Errors.First().ErrorMessage, null);
+            return Result<AuthTokens>.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var user = await _userManager.FindByEmailAsync(request.Email);
@@ -64,7 +65,7 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
             var createResult = await _userManager.CreateAsync(user);
             if (!createResult.Succeeded)
             {
-                return new ExternalLoginResult(false, "Failed To Create User Account", null);
+                return Result<AuthTokens>.Failure("Failed to create user account from external provider.");
             }
 
             await _userManager.AddToRoleAsync(user, "User");
@@ -81,7 +82,7 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
             var addLoginResult = await _userManager.AddLoginAsync(user, loginInfo);
             if (!addLoginResult.Succeeded)
             {
-                return new ExternalLoginResult(false, "Failed To Link External Provider", null);
+                return Result<AuthTokens>.Failure("Failed to link external authentication provider.");
             }
         }
 
@@ -90,8 +91,9 @@ public class ExternalLoginHandler : IRequestHandler<ExternalLoginCommand, Extern
         var tokens = await GenerateTokensAsync(user);
 
 
-        return new ExternalLoginResult(true, "External Login Successful", tokens);
+        return Result<AuthTokens>.Success(tokens, "External Login Successful");
     }
+
 
     private async Task<AuthTokens> GenerateTokensAsync(ApplicationUser user)
     {

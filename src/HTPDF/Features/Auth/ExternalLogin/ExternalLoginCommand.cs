@@ -1,4 +1,5 @@
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Auth.ExternalLogin;
@@ -9,10 +10,5 @@ public record ExternalLoginCommand(
     string ExternalId,
     string? FirstName,
     string? LastName
-) : IRequest<ExternalLoginResult>;
+) : IRequest<Result<AuthTokens>>;
 
-public record ExternalLoginResult(
-    bool Success,
-    string Message,
-    AuthTokens? Tokens
-);

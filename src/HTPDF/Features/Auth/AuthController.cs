@@ -2,15 +2,15 @@ using HTPDF.Features.Auth.ExternalLogin;
 using HTPDF.Features.Auth.Login;
 using HTPDF.Features.Auth.RefreshTokens;
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HTPDF.Features.Auth;
 
-[ApiController]
 [Route("auth")]
-public class AuthController : ControllerBase
+public class AuthController : BaseApiController
 {
     private readonly IMediator _mediator;
 
@@ -21,57 +21,34 @@ public class AuthController : ControllerBase
 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthTokens>> Register([FromBody] RegisterCommand command)
+    public async Task<ActionResult> Register([FromBody] RegisterCommand command)
     {
         var result = await _mediator.Send(command);
-
-        if (!result.Success)
-        {
-            return BadRequest(new { Error = result.Message });
-        }
-
-        return Ok(result.Tokens);
+        return HandleResult(result);
     }
 
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthTokens>> Login([FromBody] LoginCommand command)
+    public async Task<ActionResult> Login([FromBody] LoginCommand command)
     {
         var result = await _mediator.Send(command);
-
-        if (!result.Success)
-        {
-            return BadRequest(new { Error = result.Message });
-        }
-
-        return Ok(result.Tokens);
+        return HandleResult(result);
     }
 
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthTokens>> RefreshToken([FromBody] RefreshTokenCommand command)
+    public async Task<ActionResult> RefreshToken([FromBody] RefreshTokenCommand command)
     {
         var result = await _mediator.Send(command);
-
-        if (!result.Success)
-        {
-            return BadRequest(new { Error = result.Message });
-        }
-
-        return Ok(result.Tokens);
+        return HandleResult(result);
     }
 
     [HttpPost("external-login")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthTokens>> ExternalLogin([FromBody] ExternalLoginCommand command)
+    public async Task<ActionResult> ExternalLogin([FromBody] ExternalLoginCommand command)
     {
         var result = await _mediator.Send(command);
-
-        if (!result.Success)
-        {
-            return BadRequest(new { Error = result.Message });
-        }
-
-        return Ok(result.Tokens);
+        return HandleResult(result);
     }
 }
+
