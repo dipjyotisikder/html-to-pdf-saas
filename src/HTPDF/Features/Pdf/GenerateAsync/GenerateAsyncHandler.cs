@@ -1,9 +1,11 @@
+using FluentValidation;
 using Ganss.Xss;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
 using MediatR;
-
+using Microsoft.Extensions.Options;
 using System.Threading.Channels;
 
 namespace HTPDF.Features.Pdf.GenerateAsync;
@@ -13,27 +15,37 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
     private readonly ApplicationDbContext _context;
     private readonly HtmlSanitizer _sanitizer;
     private readonly Channel<string> _jobQueue;
+    private readonly IValidator<GenerateAsyncCommand> _validator;
     private readonly ILoggingService<GenerateAsyncHandler> _logger;
-    private readonly int _retentionDays;
+    private readonly FileStorageSettings _settings;
 
     public GenerateAsyncHandler(
         ApplicationDbContext context,
         HtmlSanitizer sanitizer,
         Channel<string> jobQueue,
-        IConfiguration configuration,
+        IValidator<GenerateAsyncCommand> validator,
+        IOptions<FileStorageSettings> options,
         ILoggingService<GenerateAsyncHandler> logger)
 
     {
         _context = context;
         _sanitizer = sanitizer;
         _jobQueue = jobQueue;
+        _validator = validator;
         _logger = logger;
-        _retentionDays = configuration.GetValue<int>("FileStorageSettings:RetentionDays", 7);
+        _settings = options.Value;
     }
 
     public async Task<GenerateAsyncResult> Handle(GenerateAsyncCommand request, CancellationToken cancellationToken)
     {
+        var validationResult = await _validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.Errors);
+        }
+
         var sanitizedHtml = _sanitizer.Sanitize(request.HtmlContent);
+
         var jobId = Guid.NewGuid().ToString("N");
 
         var job = new PdfJobEntity
@@ -45,8 +57,9 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
             PaperSize = request.PaperSize,
             Filename = request.Filename ?? "Document.pdf",
             Status = JobStatus.Pending,
-            ExpiresAt = DateTime.UtcNow.AddDays(_retentionDays)
+            ExpiresAt = DateTime.UtcNow.AddDays(_settings.RetentionDays)
         };
+
 
         _context.PdfJobs.Add(job);
         await _context.SaveChangesAsync(cancellationToken);

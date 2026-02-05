@@ -1,8 +1,10 @@
+using FluentValidation;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
 using MediatR;
-
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -14,29 +16,33 @@ namespace HTPDF.Features.Auth.Register;
 public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
+    private readonly IValidator<RegisterCommand> _validator;
     private readonly ILoggingService<RegisterHandler> _logger;
 
     public RegisterHandler(
         UserManager<ApplicationUser> userManager,
-        IConfiguration configuration,
+        IOptions<JwtSettings> options,
+        IValidator<RegisterCommand> validator,
         ILoggingService<RegisterHandler> logger)
 
     {
         _userManager = userManager;
-        _configuration = configuration;
+        _jwtSettings = options.Value;
+        _validator = validator;
         _logger = logger;
     }
 
     public async Task<RegisterResult> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
-        var existingUser = await _userManager.FindByEmailAsync(request.Email);
-        if (existingUser != null)
+        var validationResult = await _validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
         {
-            return new RegisterResult(false, "User With This Email Already Exists", null);
+            return new RegisterResult(false, validationResult.Errors.First().ErrorMessage, null);
         }
 
         var user = new ApplicationUser
+
         {
             UserName = request.Email,
             Email = request.Email,
@@ -65,11 +71,6 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
 
     private async Task<AuthTokens> GenerateTokensAsync(ApplicationUser user)
     {
-        var jwtSecret = _configuration["JwtSettings:SecretKey"]!;
-        var issuer = _configuration["JwtSettings:Issuer"]!;
-        var audience = _configuration["JwtSettings:Audience"]!;
-        var expirationMinutes = int.Parse(_configuration["JwtSettings:AccessTokenExpirationMinutes"]!);
-
         var roles = await _userManager.GetRolesAsync(user);
         var claims = new List<Claim>
         {
@@ -81,14 +82,14 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expirationMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
             signingCredentials: credentials
         );
 
@@ -98,7 +99,7 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
         return new AuthTokens(
             accessToken,
             refreshToken,
-            expirationMinutes * 60,
+            _jwtSettings.AccessTokenExpirationMinutes * 60,
             user.Email!,
             roles.ToList()
         );
@@ -112,3 +113,4 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
         return Convert.ToBase64String(randomNumber);
     }
 }
+

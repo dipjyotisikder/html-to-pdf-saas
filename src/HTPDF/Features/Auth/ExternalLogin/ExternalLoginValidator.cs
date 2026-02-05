@@ -2,13 +2,13 @@ using FluentValidation;
 using HTPDF.Infrastructure.Database.Entities;
 using Microsoft.AspNetCore.Identity;
 
-namespace HTPDF.Features.Auth.Login;
+namespace HTPDF.Features.Auth.ExternalLogin;
 
-public class LoginValidator : AbstractValidator<LoginCommand>
+public class ExternalLoginValidator : AbstractValidator<ExternalLoginCommand>
 {
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public LoginValidator(UserManager<ApplicationUser> userManager)
+    public ExternalLoginValidator(UserManager<ApplicationUser> userManager)
     {
         _userManager = userManager;
 
@@ -17,8 +17,11 @@ public class LoginValidator : AbstractValidator<LoginCommand>
             .EmailAddress().WithMessage("Invalid Email Address")
             .MustAsync(BeActiveUser).WithMessage("Account Is Inactive. Please Contact Support.");
 
-        RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Password Is Required");
+        RuleFor(x => x.Provider)
+            .NotEmpty().WithMessage("Provider Is Required");
+
+        RuleFor(x => x.ExternalId)
+            .NotEmpty().WithMessage("External ID Is Required");
     }
 
     private async Task<bool> BeActiveUser(string email, CancellationToken cancellationToken)

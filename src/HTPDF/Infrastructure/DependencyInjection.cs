@@ -8,6 +8,7 @@ using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Email;
 using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
 using HTPDF.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -24,6 +25,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
+        services.Configure<FileStorageSettings>(configuration.GetSection(FileStorageSettings.SectionName));
+        services.Configure<OutboxSettings>(configuration.GetSection(OutboxSettings.SectionName));
+        services.Configure<ApiKeySettings>(configuration.GetSection(ApiKeySettings.SectionName));
+        services.Configure<RequestLimits>(configuration.GetSection(RequestLimits.SectionName));
+        services.Configure<ExternalAuthSettings>(configuration.GetSection(ExternalAuthSettings.SectionName));
+
         services.AddDatabase(configuration);
         services.AddIdentityServices();
         services.AddAuthenticationServices(configuration);
@@ -35,6 +44,7 @@ public static class DependencyInjection
 
         return services;
     }
+
 
     private static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
@@ -65,9 +75,8 @@ public static class DependencyInjection
 
     private static IServiceCollection AddAuthenticationServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var jwtSecret = configuration["JwtSettings:SecretKey"]!;
-        var issuer = configuration["JwtSettings:Issuer"]!;
-        var audience = configuration["JwtSettings:Audience"]!;
+        var jwtSettings = configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
+        var externalAuth = configuration.GetSection(ExternalAuthSettings.SectionName).Get<ExternalAuthSettings>() ?? new ExternalAuthSettings();
 
         services.AddAuthentication(options =>
         {
@@ -84,26 +93,27 @@ public static class DependencyInjection
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                ValidIssuer = issuer,
-                ValidAudience = audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+                ValidIssuer = jwtSettings.Issuer,
+                ValidAudience = jwtSettings.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
                 ClockSkew = TimeSpan.Zero
             };
         })
         .AddGoogle(options =>
         {
-            options.ClientId = configuration["Authentication:Google:ClientId"] ?? "";
-            options.ClientSecret = configuration["Authentication:Google:ClientSecret"] ?? "";
+            options.ClientId = externalAuth.Google.ClientId;
+            options.ClientSecret = externalAuth.Google.ClientSecret;
         })
         .AddMicrosoftAccount(options =>
         {
-            options.ClientId = configuration["Authentication:Microsoft:ClientId"] ?? "";
-            options.ClientSecret = configuration["Authentication:Microsoft:ClientSecret"] ?? "";
+            options.ClientId = externalAuth.Microsoft.ClientId;
+            options.ClientSecret = externalAuth.Microsoft.ClientSecret;
         });
 
         services.AddAuthorization();
         return services;
     }
+
 
     private static IServiceCollection AddRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
@@ -119,11 +129,11 @@ public static class DependencyInjection
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
-            cfg.AddOpenBehavior(typeof(HTPDF.Infrastructure.Behaviors.ValidationBehavior<,>));
         });
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
         return services;
     }
+
 
     private static IServiceCollection AddCustomServices(this IServiceCollection services)
     {

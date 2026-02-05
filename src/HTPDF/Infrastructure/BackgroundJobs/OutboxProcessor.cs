@@ -2,7 +2,9 @@ using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Email;
 using HTPDF.Infrastructure.Logging;
+using HTPDF.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 
 namespace HTPDF.Infrastructure.BackgroundJobs;
@@ -11,30 +13,21 @@ public class OutboxProcessor : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILoggingService<OutboxProcessor> _logger;
-    private readonly int _processingIntervalSeconds;
-    private readonly int _batchSize;
-    private readonly int _maxRetryAttempts;
-    private readonly int _baseRetryDelayMinutes;
-    private readonly int _backoffMultiplier;
+    private readonly OutboxSettings _settings;
 
     public OutboxProcessor(
         IServiceScopeFactory scopeFactory,
-        IConfiguration configuration,
+        IOptions<OutboxSettings> options,
         ILoggingService<OutboxProcessor> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-
-        _processingIntervalSeconds = configuration.GetValue<int>("OutboxSettings:ProcessingIntervalSeconds", 30);
-        _batchSize = configuration.GetValue<int>("OutboxSettings:BatchSize", 10);
-        _maxRetryAttempts = configuration.GetValue<int>("OutboxSettings:MaxRetryAttempts", 3);
-        _baseRetryDelayMinutes = configuration.GetValue<int>("OutboxSettings:BaseRetryDelayMinutes", 1);
-        _backoffMultiplier = configuration.GetValue<int>("OutboxSettings:BackoffMultiplier", 5);
+        _settings = options.Value;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInfo(LogMessages.Infrastructure.OutboxProcessorStarted, _processingIntervalSeconds);
+        _logger.LogInfo(LogMessages.Infrastructure.OutboxProcessorStarted, _settings.ProcessingIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -47,7 +40,7 @@ public class OutboxProcessor : BackgroundService
                 _logger.LogError(ex, LogMessages.Infrastructure.OutboxProcessingError);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(_processingIntervalSeconds), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(_settings.ProcessingIntervalSeconds), stoppingToken);
         }
     }
 
@@ -62,7 +55,7 @@ public class OutboxProcessor : BackgroundService
         var messages = await context.OutboxMessages
             .Where(m => m.Status == OutboxMessageStatus.Pending && (m.NextRetryAt == null || m.NextRetryAt <= now))
             .OrderBy(m => m.CreatedAt)
-            .Take(_batchSize)
+            .Take(_settings.BatchSize)
             .ToListAsync(cancellationToken);
 
         if (messages.Count == 0)
@@ -122,21 +115,22 @@ public class OutboxProcessor : BackgroundService
         message.ErrorMessage = errorMessage;
         message.LastAttemptedAt = DateTime.UtcNow;
 
-        if (message.AttemptCount >= _maxRetryAttempts)
+        if (message.AttemptCount >= _settings.MaxRetryAttempts)
         {
             message.Status = OutboxMessageStatus.PermanentlyFailed;
             _logger.LogError(LogMessages.Infrastructure.OutboxMessagePermanentlyFailed, message.Id, message.AttemptCount);
         }
         else
         {
-            var delayMinutes = _baseRetryDelayMinutes * Math.Pow(_backoffMultiplier, message.AttemptCount - 1);
+            var delayMinutes = _settings.BaseRetryDelayMinutes * Math.Pow(_settings.BackoffMultiplier, message.AttemptCount - 1);
             message.NextRetryAt = DateTime.UtcNow.AddMinutes(delayMinutes);
             _logger.LogWarning(LogMessages.Infrastructure.OutboxMessageRetry,
-                message.Id, message.AttemptCount, _maxRetryAttempts, message.NextRetryAt);
+                message.Id, message.AttemptCount, _settings.MaxRetryAttempts, message.NextRetryAt);
         }
 
         await context.SaveChangesAsync(cancellationToken);
     }
+
 
     private static string BuildEmailBody(OutboxMessage message)
     {
