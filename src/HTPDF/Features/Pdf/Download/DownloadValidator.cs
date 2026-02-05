@@ -20,11 +20,11 @@ public class DownloadValidator : AbstractValidator<DownloadQuery>
 
     private async Task<bool> BeReadyForDownload(DownloadQuery query, string jobId, CancellationToken cancellationToken)
     {
-        return await _context.PdfJobs.AnyAsync(j => 
-            j.JobId == jobId && 
-            j.UserId == query.UserId && 
-            j.Status == JobStatus.Completed && 
-            !string.IsNullOrEmpty(j.FilePath), 
+        return await _context.PdfJobs.AnyAsync(j =>
+            j.JobId == jobId &&
+            j.UserId == query.UserId &&
+            j.Status == JobStatus.Completed &&
+            !string.IsNullOrEmpty(j.FilePath),
             cancellationToken);
     }
 }

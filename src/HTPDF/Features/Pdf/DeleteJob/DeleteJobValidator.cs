@@ -15,7 +15,7 @@ public class DeleteJobValidator : AbstractValidator<DeleteJobCommand>
         RuleFor(x => x.JobId)
             .NotEmpty().WithMessage("JobId Is Required")
             .MustAsync(BeValidAndOwnedJob).WithMessage("Job Not Found Or You Do Not Have Permission To Delete It");
-        
+
         RuleFor(x => x.UserId)
             .NotEmpty().WithMessage("UserId Is Required");
     }

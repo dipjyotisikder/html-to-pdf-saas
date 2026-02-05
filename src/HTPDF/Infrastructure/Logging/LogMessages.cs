@@ -29,7 +29,7 @@ public static class LogMessages
         public const string FileCleanupServiceStarted = "File Cleanup Service Started. Running Every {Interval} Hours";
         public const string FileCleanupStarted = "Starting File Cleanup";
         public const string FileCleanupCompleted = "File Cleanup Completed. Deleted {Count} Files";
-        
+
         public const string OutboxProcessorStarted = "Outbox Processor Started. Processing Every {Interval} Seconds";
         public const string OutboxProcessingError = "Error Processing Outbox Messages";
         public const string ProcessingOutboxCount = "Processing {Count} Outbox Messages";

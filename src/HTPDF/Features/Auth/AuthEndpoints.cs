@@ -2,9 +2,7 @@ using HTPDF.Features.Auth.ExternalLogin;
 using HTPDF.Features.Auth.Login;
 using HTPDF.Features.Auth.RefreshTokens;
 using HTPDF.Features.Auth.Register;
-using HTPDF.Infrastructure.Common;
 using MediatR;
-using Microsoft.AspNetCore.Mvc;
 
 namespace HTPDF.Features.Auth;
 
