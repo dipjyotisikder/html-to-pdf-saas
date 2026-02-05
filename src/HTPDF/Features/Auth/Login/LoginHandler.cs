@@ -1,5 +1,6 @@
 using FluentValidation;
 using HTPDF.Features.Auth.Register;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
@@ -15,7 +16,7 @@ using System.Text;
 
 namespace HTPDF.Features.Auth.Login;
 
-public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
+public class LoginHandler : IRequestHandler<LoginCommand, Result<AuthTokens>>
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
@@ -41,19 +42,19 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         _logger = logger;
     }
 
-    public async Task<LoginResult> Handle(LoginCommand request, CancellationToken cancellationToken)
+    public async Task<Result<AuthTokens>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return new LoginResult(false, validationResult.Errors.First().ErrorMessage, null);
+            return Result<AuthTokens>.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var user = await _userManager.FindByEmailAsync(request.Email);
 
         if (user == null)
         {
-            return new LoginResult(false, "Invalid Email Or Password", null);
+            return Result<AuthTokens>.Failure("Invalid Email Or Password");
         }
 
         var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
@@ -61,12 +62,12 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
 
         if (result.IsLockedOut)
         {
-            return new LoginResult(false, "Account Is Locked Out. Please Try Again Later.", null);
+            return Result<AuthTokens>.Failure("Account is temporarily locked due to multiple failed attempts. Please try again later.");
         }
 
         if (!result.Succeeded)
         {
-            return new LoginResult(false, "Invalid Email Or Password", null);
+            return Result<AuthTokens>.Failure("Invalid Email Or Password");
         }
 
         _logger.LogInfo(LogMessages.Auth.LoginSuccess, request.Email);
@@ -74,8 +75,9 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         var tokens = await GenerateTokensAsync(user);
 
 
-        return new LoginResult(true, "Login Successful", tokens);
+        return Result<AuthTokens>.Success(tokens, "Login Successful");
     }
+
 
     private async Task<AuthTokens> GenerateTokensAsync(ApplicationUser user)
     {

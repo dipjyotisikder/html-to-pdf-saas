@@ -12,10 +12,9 @@ using System.Security.Claims;
 
 namespace HTPDF.Features.Pdf;
 
-[ApiController]
 [Route("pdf")]
 [Authorize]
-public class PdfController : ControllerBase
+public class PdfController : BaseApiController
 {
     private readonly IMediator _mediator;
 
@@ -25,18 +24,18 @@ public class PdfController : ControllerBase
     }
 
     [HttpGet("dashboard")]
-    public async Task<ActionResult<DashboardResult>> GetDashboard()
+    public async Task<ActionResult> GetDashboard()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
         var query = new GetDashboardQuery(userId);
         var result = await _mediator.Send(query);
 
-        return Ok(result);
+        return HandleResult(result);
     }
 
     [HttpPost("generate/async")]
-    public async Task<ActionResult<GenerateAsyncResult>> GenerateAsync([FromBody] GenerateAsyncRequest request)
+    public async Task<ActionResult> GenerateAsync([FromBody] GenerateAsyncRequest request)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var userEmail = User.FindFirstValue(ClaimTypes.Email)!;
@@ -52,11 +51,11 @@ public class PdfController : ControllerBase
 
         var result = await _mediator.Send(command);
 
-        return AcceptedAtAction(nameof(GetStatus), new { jobId = result.JobId }, result);
+        return HandleResultWithAccepted(result, nameof(GetStatus), new { jobId = result.Value?.JobId });
     }
 
     [HttpGet("jobs")]
-    public async Task<ActionResult<GetUserJobsResult>> GetUserJobs(
+    public async Task<ActionResult> GetUserJobs(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? status = null)
@@ -66,23 +65,18 @@ public class PdfController : ControllerBase
         var query = new GetUserJobsQuery(userId, pageNumber, pageSize, status);
         var result = await _mediator.Send(query);
 
-        return Ok(result);
+        return HandleResult(result);
     }
 
     [HttpGet("jobs/{jobId}")]
-    public async Task<ActionResult<GetStatusResult>> GetStatus(string jobId)
+    public async Task<ActionResult> GetStatus(string jobId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
         var query = new GetStatusQuery(jobId, userId);
         var result = await _mediator.Send(query);
 
-        if (result == null)
-        {
-            return NotFound(new { Error = "Job Not Found" });
-        }
-
-        return Ok(result);
+        return HandleResult(result);
     }
 
     [HttpGet("jobs/{jobId}/download")]
@@ -93,30 +87,26 @@ public class PdfController : ControllerBase
         var query = new DownloadQuery(jobId, userId);
         var result = await _mediator.Send(query);
 
-        if (result == null)
+        if (result.IsFailure)
         {
-            return NotFound(new { Error = "Job Not Found Or Not Yet Completed" });
+            return BadRequest(new { Error = result.Message });
         }
 
-        return File(result.PdfBytes, Constants.PdfMimeType, result.Filename);
+        return File(result.Value!.PdfBytes, Constants.PdfMimeType, result.Value.Filename);
     }
 
     [HttpDelete("jobs/{jobId}")]
-    public async Task<ActionResult<DeleteJobResult>> DeleteJob(string jobId)
+    public async Task<ActionResult> DeleteJob(string jobId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
         var command = new DeleteJobCommand(jobId, userId);
         var result = await _mediator.Send(command);
 
-        if (!result.Success)
-        {
-            return NotFound(new { Error = result.Message });
-        }
-
-        return Ok(result);
+        return HandleResult(result);
     }
 }
+
 
 public record GenerateAsyncRequest(
     string HtmlContent,

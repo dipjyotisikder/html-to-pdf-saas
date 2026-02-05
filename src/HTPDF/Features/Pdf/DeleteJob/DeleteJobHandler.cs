@@ -1,4 +1,5 @@
 using FluentValidation;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Logging;
 using HTPDF.Infrastructure.Storage;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HTPDF.Features.Pdf.DeleteJob;
 
-public class DeleteJobHandler : IRequestHandler<DeleteJobCommand, DeleteJobResult>
+public class DeleteJobHandler : IRequestHandler<DeleteJobCommand, Result>
 {
     private readonly ApplicationDbContext _context;
     private readonly IFileStorage _fileStorage;
@@ -27,17 +28,16 @@ public class DeleteJobHandler : IRequestHandler<DeleteJobCommand, DeleteJobResul
         _logger = logger;
     }
 
-    public async Task<DeleteJobResult> Handle(DeleteJobCommand request, CancellationToken cancellationToken)
+    public async Task<Result> Handle(DeleteJobCommand request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return new DeleteJobResult(false, validationResult.Errors.First().ErrorMessage);
+            return Result.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var job = await _context.PdfJobs
             .FirstAsync(j => j.JobId == request.JobId && j.UserId == request.UserId, cancellationToken);
-
 
         if (!string.IsNullOrEmpty(job.FilePath))
         {
@@ -58,6 +58,7 @@ public class DeleteJobHandler : IRequestHandler<DeleteJobCommand, DeleteJobResul
         _logger.LogInfo(LogMessages.Pdf.JobDeleted, request.JobId, request.UserId);
 
 
-        return new DeleteJobResult(true, "Job Deleted Successfully");
+        return Result.Success("Job Deleted Successfully");
     }
 }
+

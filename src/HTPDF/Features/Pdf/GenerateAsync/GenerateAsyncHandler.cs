@@ -1,5 +1,6 @@
 using FluentValidation;
 using Ganss.Xss;
+using HTPDF.Infrastructure.Common;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Logging;
@@ -10,7 +11,7 @@ using System.Threading.Channels;
 
 namespace HTPDF.Features.Pdf.GenerateAsync;
 
-public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, GenerateAsyncResult>
+public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Result<GenerateAsyncResult>>
 {
     private readonly ApplicationDbContext _context;
     private readonly HtmlSanitizer _sanitizer;
@@ -36,12 +37,12 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
         _settings = options.Value;
     }
 
-    public async Task<GenerateAsyncResult> Handle(GenerateAsyncCommand request, CancellationToken cancellationToken)
+    public async Task<Result<GenerateAsyncResult>> Handle(GenerateAsyncCommand request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            throw new ValidationException(validationResult.Errors);
+            return Result<GenerateAsyncResult>.Failure(validationResult.Errors.First().ErrorMessage);
         }
 
         var sanitizedHtml = _sanitizer.Sanitize(request.HtmlContent);
@@ -68,12 +69,14 @@ public class GenerateAsyncHandler : IRequestHandler<GenerateAsyncCommand, Genera
 
         _logger.LogInfo(LogMessages.Pdf.JobCreated, jobId, request.UserId);
 
-        return new GenerateAsyncResult(
-
+        var resultData = new GenerateAsyncResult(
             jobId,
             "Pending",
             "PDF Generation Job Has Been Queued. You Will Receive An Email When It's Ready.",
             DateTime.UtcNow
         );
+
+        return Result<GenerateAsyncResult>.Success(resultData);
     }
 }
+

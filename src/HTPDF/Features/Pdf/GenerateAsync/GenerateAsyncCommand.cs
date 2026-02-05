@@ -1,3 +1,4 @@
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Pdf.GenerateAsync;
@@ -9,7 +10,8 @@ public record GenerateAsyncCommand(
     string? Filename,
     string Orientation,
     string PaperSize
-) : IRequest<GenerateAsyncResult>;
+) : IRequest<Result<GenerateAsyncResult>>;
+
 
 public record GenerateAsyncResult(
     string JobId,

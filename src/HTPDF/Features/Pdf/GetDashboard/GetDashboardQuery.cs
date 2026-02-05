@@ -1,10 +1,12 @@
+using HTPDF.Infrastructure.Common;
 using MediatR;
 
 namespace HTPDF.Features.Pdf.GetDashboard;
 
 public record GetDashboardQuery(
     string UserId
-) : IRequest<DashboardResult>;
+) : IRequest<Result<DashboardResult>>;
+
 
 public record DashboardResult(
     UserStats Stats,
