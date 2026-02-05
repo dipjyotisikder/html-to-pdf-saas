@@ -14,9 +14,6 @@
     <Company>HTPDF</Company>
     <Product>HTML to PDF Service</Product>
     <Copyright>Copyright © 2026</Copyright>
-    <PackageProjectUrl>https://github.com/yourusername/html-to-pdf-dotnet</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/yourusername/html-to-pdf-dotnet</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">

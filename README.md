@@ -55,13 +55,25 @@ cd html-to-pdf-dotnet
 dotnet restore
 ```
 
-3. Update the connection string in `src/HTPDF/appsettings.json`:
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=HtpdfDb;Trusted_Connection=True;"
-  }
-}
+3. Configure application settings:
+
+Copy the example configuration file:
+```bash
+cp appsettings.example.json src/HTPDF/appsettings.json
+```
+
+Then update `src/HTPDF/appsettings.json` with your specific values.
+
+**Important:** Never commit sensitive credentials to version control. Use User Secrets for development and environment variables for production.
+
+**Recommended: Use User Secrets for development:**
+```bash
+cd src/HTPDF
+dotnet user-secrets init
+dotnet user-secrets set "JwtSettings:SecretKey" "your-secret-key-at-least-32-characters"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=(localdb)\\mssqllocaldb;Database=HtpdfDb;Trusted_Connection=True;"
+dotnet user-secrets set "EmailSettings:Username" "your-email@gmail.com"
+dotnet user-secrets set "EmailSettings:Password" "your-smtp-password"
 ```
 
 4. Apply database migrations:
@@ -69,19 +81,7 @@ dotnet restore
 dotnet ef database update --project src/HTPDF
 ```
 
-5. Configure JWT settings in `appsettings.json`:
-```json
-{
-  "JwtSettings": {
-    "SecretKey": "your-secret-key-min-32-characters",
-    "Issuer": "https://localhost:7000",
-    "Audience": "https://localhost:7000",
-    "ExpiryMinutes": 60
-  }
-}
-```
-
-6. Run the application:
+5. Run the application:
 ```bash
 dotnet run --project src/HTPDF
 ```
@@ -166,6 +166,38 @@ html-to-pdf-dotnet/
 
 ## Configuration
 
+All sensitive configuration should be managed through:
+- **User Secrets** for local development
+- **Environment Variables** for production deployments
+- **Azure Key Vault** or similar secret management for cloud deployments
+
+See [appsettings.example.json](appsettings.example.json) for a complete configuration template.
+
+### Required Settings
+
+| Setting | Description | Example |
+|---------|-------------|---------|
+| `ConnectionStrings:DefaultConnection` | SQL Server connection string | `Server=(localdb)\\mssqllocaldb;Database=HtpdfDb;Trusted_Connection=True;` |
+| `JwtSettings:SecretKey` | JWT signing key (min 32 chars) | Use `dotnet user-secrets` |
+| `JwtSettings:Issuer` | JWT issuer URL | `https://yourdomain.com` |
+| `JwtSettings:Audience` | JWT audience URL | `https://yourdomain.com` |
+
+### Optional Settings
+
+**Email Notifications:**
+```bash
+dotnet user-secrets set "EmailSettings:SmtpHost" "smtp.gmail.com"
+dotnet user-secrets set "EmailSettings:SmtpPort" "587"
+dotnet user-secrets set "EmailSettings:Username" "your-email@gmail.com"
+dotnet user-secrets set "EmailSettings:Password" "your-app-password"
+```
+
+**OAuth Providers:**
+```bash
+dotnet user-secrets set "Authentication:Google:ClientId" "your-client-id"
+dotnet user-secrets set "Authentication:Google:ClientSecret" "your-client-secret"
+```
+
 ### Rate Limiting
 
 Configure in `appsettings.json`:
@@ -198,6 +230,27 @@ Configure SMTP settings for notifications:
   }
 }
 ```
+
+## Security Best Practices
+
+**Never commit secrets to version control:**
+- Use .NET User Secrets for local development
+- Use environment variables or secret managers in production
+- The `appsettings.json` file should contain only non-sensitive defaults
+- Review `.gitignore` to ensure sensitive files are excluded
+
+**Included in `.gitignore`:**
+- `appsettings.Local.json`
+- `appsettings.*.Local.json`
+- `*.db` and database files
+- User secrets and `.env` files
+
+**For production deployments:**
+- Use HTTPS only
+- Store secrets in Azure Key Vault, AWS Secrets Manager, or similar
+- Enable authentication and authorization
+- Configure appropriate rate limits
+- Regularly update dependencies for security patches
 
 ## Docker Support
 
