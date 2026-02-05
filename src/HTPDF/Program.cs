@@ -7,7 +7,9 @@ using HTPDF.Infrastructure.BackgroundJobs;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Email;
+using HTPDF.Infrastructure.Logging;
 using HTPDF.Infrastructure.Storage;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -92,7 +94,9 @@ builder.Services.AddSingleton<HtmlSanitizer>();
 builder.Services.AddSingleton(Channel.CreateUnbounded<string>());
 builder.Services.AddScoped<IFileStorage, FileSystemStorage>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton(typeof(ILoggingService<>), typeof(LoggingService<>));
 builder.Services.AddTransient<HTPDF.Infrastructure.Middleware.GlobalExceptionHandler>();
+
 
 builder.Services.AddHostedService<PdfJobProcessor>();
 builder.Services.AddHostedService<OutboxProcessor>();
@@ -180,16 +184,18 @@ using (var scope = app.Services.CreateScope())
             if (result.Succeeded)
             {
                 await userManager.AddToRoleAsync(adminUser, "Admin");
-                app.Logger.LogInformation("Admin User Created: {Email}", adminEmail);
+                var programLogger = services.GetRequiredService<ILoggingService<Program>>();
+                programLogger.LogInfo(LogMessages.Infrastructure.AdminUserCreated, adminEmail);
             }
         }
     }
     catch (Exception ex)
     {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Error During Database Migration Or Seeding");
+        var logger = services.GetRequiredService<ILoggingService<Program>>();
+        logger.LogError(ex, LogMessages.Infrastructure.DatabaseMigrationError);
     }
 }
+
 
 if (app.Environment.IsDevelopment())
 {
@@ -209,7 +215,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-app.Logger.LogInformation("HTML To PDF API v3.0 Started - Vertical Slice Architecture");
-app.Logger.LogInformation("Swagger UI: /swagger");
+var appLogger = app.Services.GetRequiredService<ILoggingService<Program>>();
+appLogger.LogInfo(LogMessages.Infrastructure.ApiStarted);
+appLogger.LogInfo(LogMessages.Infrastructure.SwaggerUrl);
 
 await app.RunAsync();
+

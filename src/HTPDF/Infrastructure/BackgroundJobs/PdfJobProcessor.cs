@@ -2,7 +2,9 @@ using DinkToPdf;
 using DinkToPdf.Contracts;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using HTPDF.Infrastructure.Storage;
+
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Channels;
 
@@ -12,12 +14,13 @@ public class PdfJobProcessor : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly Channel<string> _jobQueue;
-    private readonly ILogger<PdfJobProcessor> _logger;
+    private readonly ILoggingService<PdfJobProcessor> _logger;
 
     public PdfJobProcessor(
         IServiceScopeFactory scopeFactory,
         Channel<string> jobQueue,
-        ILogger<PdfJobProcessor> logger)
+        ILoggingService<PdfJobProcessor> logger)
+
     {
         _scopeFactory = scopeFactory;
         _jobQueue = jobQueue;
@@ -26,9 +29,10 @@ public class PdfJobProcessor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("PDF Job Processor Started");
+        _logger.LogInfo(LogMessages.Infrastructure.PdfJobProcessorStarted);
 
         await foreach (var jobId in _jobQueue.Reader.ReadAllAsync(stoppingToken))
+
         {
             if (stoppingToken.IsCancellationRequested)
                 break;
@@ -59,7 +63,7 @@ public class PdfJobProcessor : BackgroundService
             job.AttemptCount++;
             await context.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Processing PDF Job {JobId}, Attempt {Attempt}", jobId, job.AttemptCount);
+            _logger.LogInfo(LogMessages.Infrastructure.ProcessingPdfJob, jobId, job.AttemptCount);
 
             var pdfBytes = await Task.Run(() => ConvertHtmlToPdf(converter, job.HtmlContent, job.Orientation, job.PaperSize), cancellationToken);
 
@@ -70,7 +74,7 @@ public class PdfJobProcessor : BackgroundService
 
             await context.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Job {JobId} Completed Successfully", jobId);
+            _logger.LogInfo(LogMessages.Infrastructure.PdfJobCompleted, jobId);
 
             await CreateOutboxMessageAsync(context, job, cancellationToken);
         }
@@ -82,11 +86,12 @@ public class PdfJobProcessor : BackgroundService
 
             await context.SaveChangesAsync(cancellationToken);
 
-            _logger.LogError(ex, "Job {JobId} Failed", jobId);
+            _logger.LogError(ex, LogMessages.Infrastructure.PdfJobFailed, jobId);
 
             await CreateFailureOutboxMessageAsync(context, job, cancellationToken);
         }
     }
+
 
     private static byte[] ConvertHtmlToPdf(IConverter converter, string htmlContent, string orientation, string paperSize)
     {

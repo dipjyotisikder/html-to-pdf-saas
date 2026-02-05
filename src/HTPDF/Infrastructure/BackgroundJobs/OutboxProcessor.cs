@@ -1,14 +1,16 @@
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
 using HTPDF.Infrastructure.Email;
+using HTPDF.Infrastructure.Logging;
 using Microsoft.EntityFrameworkCore;
+
 
 namespace HTPDF.Infrastructure.BackgroundJobs;
 
 public class OutboxProcessor : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<OutboxProcessor> _logger;
+    private readonly ILoggingService<OutboxProcessor> _logger;
     private readonly int _processingIntervalSeconds;
     private readonly int _batchSize;
     private readonly int _maxRetryAttempts;
@@ -18,10 +20,11 @@ public class OutboxProcessor : BackgroundService
     public OutboxProcessor(
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
-        ILogger<OutboxProcessor> logger)
+        ILoggingService<OutboxProcessor> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+
         _processingIntervalSeconds = configuration.GetValue<int>("OutboxSettings:ProcessingIntervalSeconds", 30);
         _batchSize = configuration.GetValue<int>("OutboxSettings:BatchSize", 10);
         _maxRetryAttempts = configuration.GetValue<int>("OutboxSettings:MaxRetryAttempts", 3);
@@ -31,7 +34,7 @@ public class OutboxProcessor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Outbox Processor Started. Processing Every {Interval} Seconds", _processingIntervalSeconds);
+        _logger.LogInfo(LogMessages.Infrastructure.OutboxProcessorStarted, _processingIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -41,12 +44,13 @@ public class OutboxProcessor : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error Processing Outbox Messages");
+                _logger.LogError(ex, LogMessages.Infrastructure.OutboxProcessingError);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(_processingIntervalSeconds), stoppingToken);
         }
     }
+
 
     private async Task ProcessMessagesAsync(CancellationToken cancellationToken)
     {
@@ -66,9 +70,10 @@ public class OutboxProcessor : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Processing {Count} Outbox Messages", messages.Count);
+        _logger.LogInfo(LogMessages.Infrastructure.ProcessingOutboxCount, messages.Count);
 
         foreach (var message in messages)
+
         {
             if (cancellationToken.IsCancellationRequested)
                 break;
@@ -81,7 +86,7 @@ public class OutboxProcessor : BackgroundService
     {
         try
         {
-            _logger.LogInformation("Processing Outbox Message {MessageId}, Type: {Type}, Attempt: {Attempt}", message.Id, message.MessageType, message.AttemptCount + 1);
+            _logger.LogInfo(LogMessages.Infrastructure.ProcessingOutboxMessage, message.Id, message.MessageType, message.AttemptCount + 1);
 
             var emailSent = await emailSender.SendAsync(
                 message.EmailTo,
@@ -97,7 +102,7 @@ public class OutboxProcessor : BackgroundService
                 message.Status = OutboxMessageStatus.Completed;
                 message.ProcessedAt = DateTime.UtcNow;
                 await context.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Outbox Message {MessageId} Processed Successfully", message.Id);
+                _logger.LogInfo(LogMessages.Infrastructure.OutboxMessageProcessed, message.Id);
             }
             else
             {
@@ -106,7 +111,7 @@ public class OutboxProcessor : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error Processing Outbox Message {MessageId}", message.Id);
+            _logger.LogError(ex, LogMessages.Infrastructure.OutboxMessageProcessingError, message.Id);
             await HandleFailureAsync(message, context, ex.Message, cancellationToken);
         }
     }
@@ -120,13 +125,13 @@ public class OutboxProcessor : BackgroundService
         if (message.AttemptCount >= _maxRetryAttempts)
         {
             message.Status = OutboxMessageStatus.PermanentlyFailed;
-            _logger.LogError("Outbox Message {MessageId} Permanently Failed After {Attempts} Attempts", message.Id, message.AttemptCount);
+            _logger.LogError(LogMessages.Infrastructure.OutboxMessagePermanentlyFailed, message.Id, message.AttemptCount);
         }
         else
         {
             var delayMinutes = _baseRetryDelayMinutes * Math.Pow(_backoffMultiplier, message.AttemptCount - 1);
             message.NextRetryAt = DateTime.UtcNow.AddMinutes(delayMinutes);
-            _logger.LogWarning("Outbox Message {MessageId} Failed, Will Retry (Attempt {Attempt}/{Max}). Next Retry At {NextRetry}",
+            _logger.LogWarning(LogMessages.Infrastructure.OutboxMessageRetry,
                 message.Id, message.AttemptCount, _maxRetryAttempts, message.NextRetryAt);
         }
 

@@ -1,7 +1,9 @@
 using HTPDF.Features.Auth.Register;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -17,13 +19,14 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<RefreshTokenHandler> _logger;
+    private readonly ILoggingService<RefreshTokenHandler> _logger;
 
     public RefreshTokenHandler(
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<RefreshTokenHandler> logger)
+        ILoggingService<RefreshTokenHandler> logger)
+
     {
         _userManager = userManager;
         _context = context;
@@ -83,9 +86,10 @@ public class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, RefreshT
             return new RefreshTokenResult(false, "User Not Found Or Inactive", null);
         }
 
-        _logger.LogInformation("Refresh Token Used By User {Email}", user.Email);
+        _logger.LogInfo(LogMessages.Auth.RefreshTokenUsed, user.Email);
 
         var tokens = await GenerateTokensAsync(user);
+
 
         return new RefreshTokenResult(true, "Token Refreshed Successfully", tokens);
     }

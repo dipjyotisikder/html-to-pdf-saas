@@ -1,7 +1,9 @@
 using HTPDF.Features.Auth.Register;
 using HTPDF.Infrastructure.Database;
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -17,14 +19,15 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<LoginHandler> _logger;
+    private readonly ILoggingService<LoginHandler> _logger;
 
     public LoginHandler(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         ApplicationDbContext context,
         IConfiguration configuration,
-        ILogger<LoginHandler> logger)
+        ILoggingService<LoginHandler> logger)
+
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -58,9 +61,10 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
             return new LoginResult(false, "Invalid Email Or Password", null);
         }
 
-        _logger.LogInformation("User {Email} Logged In Successfully", request.Email);
+        _logger.LogInfo(LogMessages.Auth.LoginSuccess, request.Email);
 
         var tokens = await GenerateTokensAsync(user);
+
 
         return new LoginResult(true, "Login Successful", tokens);
     }

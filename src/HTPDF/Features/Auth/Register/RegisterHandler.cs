@@ -1,5 +1,7 @@
 using HTPDF.Infrastructure.Database.Entities;
+using HTPDF.Infrastructure.Logging;
 using MediatR;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -13,12 +15,13 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<RegisterHandler> _logger;
+    private readonly ILoggingService<RegisterHandler> _logger;
 
     public RegisterHandler(
         UserManager<ApplicationUser> userManager,
         IConfiguration configuration,
-        ILogger<RegisterHandler> logger)
+        ILoggingService<RegisterHandler> logger)
+
     {
         _userManager = userManager;
         _configuration = configuration;
@@ -52,9 +55,10 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, RegisterResult>
 
         await _userManager.AddToRoleAsync(user, "User");
 
-        _logger.LogInformation("User {Email} Registered Successfully", request.Email);
+        _logger.LogInfo(LogMessages.Auth.RegisterSuccess, request.Email);
 
         var tokens = await GenerateTokensAsync(user);
+
 
         return new RegisterResult(true, "Registration Successful", tokens);
     }
