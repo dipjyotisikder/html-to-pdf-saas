@@ -1,201 +1,20 @@
 using AspNetCoreRateLimit;
-using DinkToPdf;
-using DinkToPdf.Contracts;
-using FluentValidation;
-using Ganss.Xss;
-using HTPDF.Infrastructure.BackgroundJobs;
+using HTPDF.Infrastructure;
 using HTPDF.Infrastructure.Database;
-using HTPDF.Infrastructure.Database.Entities;
-using HTPDF.Infrastructure.Email;
 using HTPDF.Infrastructure.Logging;
-using HTPDF.Infrastructure.Storage;
-
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Reflection;
-using System.Text;
-using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
-{
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 6;
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.AllowedForNewUsers = true;
-    options.User.RequireUniqueEmail = true;
-})
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders();
-
-var jwtSecret = builder.Configuration["JwtSettings:SecretKey"]!;
-var issuer = builder.Configuration["JwtSettings:Issuer"]!;
-var audience = builder.Configuration["JwtSettings:Audience"]!;
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.SaveToken = true;
-    options.RequireHttpsMetadata = false;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = issuer,
-        ValidAudience = audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-        ClockSkew = TimeSpan.Zero
-    };
-})
-.AddGoogle(options =>
-{
-    options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "";
-    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "";
-})
-.AddMicrosoftAccount(options =>
-{
-    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? "";
-    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? "";
-});
-
-builder.Services.AddAuthorization();
-
-builder.Services.AddMemoryCache();
-builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
-builder.Services.AddInMemoryRateLimiting();
-builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
-
-builder.Services.AddMediatR(cfg =>
-{
-    cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
-    cfg.AddOpenBehavior(typeof(HTPDF.Infrastructure.Behaviors.ValidationBehavior<,>));
-});
-builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
-
-builder.Services.AddSingleton(typeof(IConverter), new SynchronizedConverter(new PdfTools()));
-builder.Services.AddSingleton<HtmlSanitizer>();
-builder.Services.AddSingleton(Channel.CreateUnbounded<string>());
-builder.Services.AddScoped<IFileStorage, FileSystemStorage>();
-builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
-builder.Services.AddSingleton(typeof(ILoggingService<>), typeof(LoggingService<>));
-builder.Services.AddTransient<HTPDF.Infrastructure.Middleware.GlobalExceptionHandler>();
-
-
-builder.Services.AddHostedService<PdfJobProcessor>();
-builder.Services.AddHostedService<OutboxProcessor>();
-builder.Services.AddHostedService<FileCleanup>();
+// Add Infrastructure Services
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "HTML To PDF API",
-        Version = "v3.0",
-        Description = "Vertical Slice Architecture With Clean Code"
-    });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization Header Using The Bearer Scheme",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
-
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        c.IncludeXmlComments(xmlPath);
-    }
-});
-
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-
-        await context.Database.MigrateAsync();
-
-        if (!await roleManager.RoleExistsAsync("Admin"))
-        {
-            await roleManager.CreateAsync(new IdentityRole("Admin"));
-        }
-        if (!await roleManager.RoleExistsAsync("User"))
-        {
-            await roleManager.CreateAsync(new IdentityRole("User"));
-        }
-
-        var adminEmail = "admin@htmltopdf.com";
-        if (await userManager.FindByEmailAsync(adminEmail) == null)
-        {
-            var adminUser = new ApplicationUser
-            {
-                UserName = adminEmail,
-                Email = adminEmail,
-                FirstName = "Admin",
-                LastName = "User",
-                EmailConfirmed = true
-            };
-
-            var result = await userManager.CreateAsync(adminUser, "Admin@123");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-                var programLogger = services.GetRequiredService<ILoggingService<Program>>();
-                programLogger.LogInfo(LogMessages.Infrastructure.AdminUserCreated, adminEmail);
-            }
-        }
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILoggingService<Program>>();
-        logger.LogError(ex, LogMessages.Infrastructure.DatabaseMigrationError);
-    }
-}
-
+// Initialize Database (Migrations and Seeding)
+await app.InitializeDatabaseAsync();
 
 if (app.Environment.IsDevelopment())
 {
@@ -220,4 +39,5 @@ appLogger.LogInfo(LogMessages.Infrastructure.ApiStarted);
 appLogger.LogInfo(LogMessages.Infrastructure.SwaggerUrl);
 
 await app.RunAsync();
+
 
